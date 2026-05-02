@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 
 <head>
@@ -605,6 +605,54 @@
             border-radius: 10px;
             color: var(--text-light);
             font-size: 14px;
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+        
+        /* Utility Classes */
+        .flex { display: flex; }
+        .items-center { align-items: center; }
+        .justify-center { justify-content: center; }
+        .flex-wrap { flex-wrap: wrap; }
+        .gap-2 { gap: 8px; }
+        .gap-3 { gap: 12px; }
+        .gap-4 { gap: 16px; }
+        .mb-2 { margin-bottom: 8px; }
+        .mt-1 { margin-top: 4px; }
+        .p-2 { padding: 8px; }
+        .p-3 { padding: 12px; }
+        .w-8 { width: 32px; }
+        .h-10 { height: 40px; }
+        .w-16 { width: 64px; }
+        .h-16 { height: 64px; }
+        .rounded-full { border-radius: 50%; }
+        .rounded-xl { border-radius: 12px; }
+        .rounded { border-radius: 4px; }
+        .bg-black\/20 { background: rgba(0, 0, 0, 0.2); }
+        .bg-primary\/20 { background: rgba(27, 214, 142, 0.2); }
+        .bg-accent\/20 { background: rgba(255, 15, 26, 0.2); }
+        .text-primary { color: var(--primary); }
+        .text-accent { color: var(--accent); }
+        .text-xs { font-size: 12px; }
+        .text-sm { font-size: 14px; }
+        .font-bold { font-weight: 700; }
+        .cursor-pointer { cursor: pointer; }
+        .relative { position: relative; }
+        .absolute { position: absolute; }
+        .z-50 { z-index: 50; }
+        .shadow-2xl { box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); }
+        .max-h-48 { max-height: 192px; }
+        .overflow-y-auto { overflow-y: auto; }
+        .animate-in { animation: fadeIn 0.3s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+            width: 100%;
+            padding: 14px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            color: var(--text-light);
+            font-size: 14px;
             cursor: pointer;
         }
 
@@ -1019,6 +1067,19 @@
 
             .nav-item i {
                 font-size: 18px;
+            }
+        }
+
+        .content-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 20px;
+        }
+
+        @media (max-width: 640px) {
+            .content-grid {
+                grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+                gap: 12px;
             }
         }
 
@@ -1487,6 +1548,7 @@
                 <div class="page-header">
                     <h2 class="page-title">إدارة المستخدمين</h2>
                     <div class="page-actions">
+                        <button class="btn-primary" onclick="loadUsers()"><i class="fas fa-sync"></i> تحديث</button>
                         <button class="btn-primary" onclick="openUserModal()"><i class="fas fa-plus"></i> إضافة مستخدم</button>
                     </div>
                 </div>
@@ -1594,12 +1656,33 @@
                                     <select id="user-group" class="form-select"></select>
                                 </div>
                                 <div class="form-group" style="grid-column: 1 / -1;">
-                                    <label class="form-label">حظر تصنيفات معينة (مفصولة بفاصلة)</label>
-                                    <input type="text" id="user-blocked-genres" class="form-input" placeholder="رعب, جريمة, رومانسي">
+                                    <label class="form-label">الصورة الشخصية</label>
+                                    <div class="flex items-center gap-4">
+                                        <img id="user-avatar-preview" src="/uploads/users/default.png" class="w-16 h-16 rounded-full object-cover border-2 border-primary/20">
+                                        <input type="file" id="user-avatar-file" class="hidden" onchange="uploadUserAvatar(this)">
+                                        <button type="button" class="btn-secondary text-sm" onclick="document.getElementById('user-avatar-file').click()">
+                                            <i class="fas fa-upload ml-2"></i> رفع صورة
+                                        </button>
+                                        <input type="hidden" id="user-avatar-url">
+                                    </div>
                                 </div>
                                 <div class="form-group" style="grid-column: 1 / -1;">
-                                    <label class="form-label">حظر عناوين معينة (مفصولة بفاصلة)</label>
-                                    <input type="text" id="user-blocked-titles" class="form-input" placeholder="Titanic, Saw">
+                                    <label class="form-label">التصنيفات المحظورة (اضغط للإلغاء)</label>
+                                    <div id="user-blocked-genres-list" class="flex flex-wrap gap-2 mb-2 min-h-[40px] p-2 bg-black/20 rounded-xl"></div>
+                                    <select class="form-select" onchange="addBlockedGenre(this.value); this.value=''">
+                                        <option value="">اختر تصنيف للحظر...</option>
+                                        <optgroup id="genres-optgroup" label="التصنيفات المتاحة"></optgroup>
+                                    </select>
+                                    <input type="hidden" id="user-blocked-genres">
+                                </div>
+                                <div class="form-group" style="grid-column: 1 / -1;">
+                                    <label class="form-label">العناوين المحظورة (اضغط للإلغاء)</label>
+                                    <div id="user-blocked-titles-list" class="flex flex-wrap gap-2 mb-2 min-h-[40px] p-2 bg-black/20 rounded-xl"></div>
+                                    <div class="relative">
+                                        <input type="text" class="form-input" placeholder="ابحث عن عنوان للحظر..." onkeyup="searchTitlesForBlock(this.value)">
+                                        <div id="titles-search-results" class="absolute z-50 w-full mt-1 bg-surface border border-white/10 rounded-xl shadow-2xl max-h-48 overflow-y-auto hidden"></div>
+                                    </div>
+                                    <input type="hidden" id="user-blocked-titles">
                                 </div>
                             </div>
                         </form>
@@ -1975,24 +2058,8 @@
                     </button>
                 </div>
 
-                <div class="card">
-                    <div class="table-container">
-                        <table class="data-table" id="actors-table">
-                            <thead>
-                                <tr>
-                                    <th>الصورة</th>
-                                    <th>الاسم</th>
-                                    <th>الجنسية</th>
-                                    <th>تاريخ الميلاد</th>
-                                    <th>عدد الأعمال</th>
-                                    <th>الإجراءات</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                
-                            </tbody>
-                        </table>
-                    </div>
+                <div class="grid-view" id="actors-grid">
+                    <!-- Actors will be loaded here -->
                 </div>
             </div>
 
@@ -2895,7 +2962,17 @@
                         <div class="modal-body">
                             <div class="form-grid">
                                 <div class="form-group">
-                                    <label class="form-label">اسم الممثل *</label>
+                                    <label class="form-label">الاسم بالعربية</label>
+                                    <input type="text" name="nameAr" class="form-input">
+                                </div>
+
+                                <div class="form-group">
+                                    <label class="form-label">الاسم بالإنجليزية</label>
+                                    <input type="text" name="nameEn" class="form-input">
+                                </div>
+
+                                <div class="form-group">
+                                    <label class="form-label">اسم العرض *</label>
                                     <input type="text" name="name" class="form-input" required>
                                 </div>
 
@@ -2934,6 +3011,53 @@
                             <button type="submit" class="btn-primary">حفظ الممثل</button>
                         </div>
                     </form>
+                </div>
+            </div>
+
+            <!-- Actor Works Modal -->
+            <div id="actor-works-modal" class="modal">
+                <div class="modal-content" style="max-width: 800px;">
+                    <div class="modal-header">
+                        <h2 class="modal-title">إدارة أعمال الممثل</h2>
+                        <button class="close-modal" onclick="closeModal('actor-works-modal')">&times;</button>
+                    </div>
+                    <div class="modal-body">
+                        <input type="hidden" id="manage-actor-id">
+                        
+                        <div class="mb-6">
+                            <h3 class="text-sm font-medium text-gray-400 mb-3">إضافة عمل جديد لهذا الممثل:</h3>
+                            <div class="flex gap-2">
+                                <select id="actor-add-work-select" class="form-select flex-1">
+                                    <option value="">اختر مسلسل أو فيلم للإضافة...</option>
+                                </select>
+                                <button class="btn-primary" onclick="addWorkToActor()">
+                                    <i class="fas fa-plus"></i>
+                                    إضافة العمل
+                                </button>
+                            </div>
+                        </div>
+
+                        <h3 class="text-sm font-medium text-gray-400 mb-3">الأعمال المرتبطة حالياً:</h3>
+                        <div class="table-container" style="max-height: 400px; overflow-y: auto;">
+                            <table class="data-table" id="actor-works-table">
+                                <thead>
+                                    <tr>
+                                        <th>بوستر</th>
+                                        <th>العنوان</th>
+                                        <th>النوع</th>
+                                        <th>السنة</th>
+                                        <th>الإجراءات</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <!-- Works will be loaded here -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn-secondary" onclick="closeModal('actor-works-modal')">إغلاق</button>
+                    </div>
                 </div>
             </div>
 
@@ -3005,6 +3129,32 @@
                             <button type="submit" class="btn-primary">حفظ الربط</button>
                         </div>
                     </form>
+                </div>
+            </div>
+
+            <!-- View Genre Content Modal -->
+            <div id="view-genre-content-modal" class="modal">
+                <div class="modal-content !max-w-4xl">
+                    <div class="modal-header">
+                        <h2 class="modal-title" id="genre-content-title">المحتوى المرتبط بتصنيف</h2>
+                        <button class="close-modal" onclick="closeModal('view-genre-content-modal')">&times;</button>
+                    </div>
+                    <div class="modal-body">
+                        <div id="genre-content-loading" class="flex flex-col items-center justify-center py-10 text-gray-400">
+                            <i class="fas fa-spinner fa-spin text-3xl mb-3 text-primary"></i>
+                            <p>جاري تحميل المحتوى...</p>
+                        </div>
+                        <div id="genre-content-empty" class="hidden text-center py-10 text-gray-500">
+                            <i class="fas fa-film text-4xl mb-3 opacity-20"></i>
+                            <p>لا يوجد محتوى مرتبط بهذا التصنيف حالياً</p>
+                        </div>
+                        <div id="genre-content-grid" class="content-grid">
+                            <!-- Content Cards go here -->
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn-secondary" onclick="closeModal('view-genre-content-modal')">إغلاق</button>
+                    </div>
                 </div>
             </div>
 
@@ -3281,8 +3431,12 @@
                 // ==========================================
                 // 1. الإعدادات العامة
                 // ==========================================
-                const API_BASE = 'http://localhost:3000/api';
+                const API_BASE = window.location.protocol === 'file:' ? 'http://localhost:3000/api' : '/api';
                 let currentAdmin = null;
+                let allGroups = [];
+                let allGenres = [];
+                let allTitles = [];
+                
                 let currentUpload = {
                     callback: null,
                     target: null,
@@ -3346,6 +3500,7 @@
                             document.getElementById('admin-panel').classList.remove('hidden');
 
                             showAlert('تم تسجيل الدخول بنجاح', 'success');
+                            loadMetadata();
                             loadDashboard();
                         } else {
                             document.getElementById('login-error').classList.remove('hidden');
@@ -3385,6 +3540,7 @@
                             document.getElementById('login-page').classList.add('hidden');
                             document.getElementById('admin-panel').classList.remove('hidden');
 
+                            loadMetadata();
                             loadDashboard();
                         } catch (error) {
                             console.error('Error loading saved session:', error);
@@ -3447,6 +3603,9 @@
                             case 'files': loadFiles(); break;
                             case 'logs': loadLogs(); break;
                             case 'backup': loadBackupInfo(); break;
+                            case 'users': loadUsers(); break;
+                            case 'groups': loadGroups(); break;
+                            case 'history': loadUsers(); break;
                         }
                     } catch (err) {
                         console.error('Error loading section data:', err);
@@ -3556,8 +3715,34 @@
                     preview.classList.remove('hidden');
 
                     preview.innerHTML = `
+                    <style>
+                    .tmdb-segmented-control {
+                      position: relative;
+                      display: flex;
+                      background-color: #1a1a1a;
+                      padding: 4px;
+                      border-radius: 50px;
+                      width: 140px;
+                      direction: rtl;
+                      margin: 0 auto;
+                    }
+                    .tmdb-segmented-control input { display: none; }
+                    .tmdb-segmented-control label {
+                      flex: 1; text-align: center; padding: 6px 0;
+                      cursor: pointer; color: #999; font-family: sans-serif;
+                      font-weight: bold; z-index: 2; transition: color 0.3s ease; margin: 0; font-size: 12px;
+                    }
+                    .tmdb-segmented-control .selection-slider {
+                      position: absolute; top: 4px; bottom: 4px; right: 4px;
+                      width: calc(50% - 4px); background-color: #2ecc71;
+                      border-radius: 40px; transition: transform 0.3s ease; z-index: 1;
+                    }
+                    .tmdb-segmented-control input[value="ar"]:checked ~ label[data-lang="ar"],
+                    .tmdb-segmented-control input[value="en"]:checked ~ label[data-lang="en"] { color: #000; }
+                    .tmdb-segmented-control input[value="en"]:checked ~ .selection-slider { transform: translateX(-100%); }
+                    </style>
                     <div class="card mt-4 border border-primary/30">
-                        <div class="card-header bg-primary/10 flex justify-between items-center">
+                        <div class="card-header bg-primary/10 flex justify-between items-center flex-wrap gap-3">
                             <h2 class="card-title text-primary">مراجعة واختيار البيانات المستوردة</h2>
                             <span class="badge ${data.isMovie ? 'bg-blue-600' : 'bg-purple-600'} text-white px-3 py-1 rounded font-bold">
                                 ${data.isMovie ? 'فيلم' : 'مسلسل'}
@@ -3567,18 +3752,27 @@
                             <!-- معرض الصور: بوستر + خلفية -->
                             <div class="flex flex-col md:flex-row gap-6 mb-6">
                                 <!-- البوستر -->
-                                <div class="flex flex-col items-center gap-2">
-                                    <img src="${data.poster}" class="rounded-lg shadow-lg" style="width: 150px; height: 225px; object-fit: cover;">
+                                <div class="flex flex-col gap-3 items-center">
+                                    <!-- Capsule for Poster -->
+                                    <div class="tmdb-segmented-control">
+                                      <input type="radio" name="tmdb-poster-lang" id="poster-ar" value="ar" checked onchange="selectLang('poster', 'ar')">
+                                      <input type="radio" name="tmdb-poster-lang" id="poster-en" value="en" onchange="selectLang('poster', 'en')">
+                                      <label for="poster-ar" data-lang="ar">عربي</label>
+                                      <label for="poster-en" data-lang="en">English</label>
+                                      <div class="selection-slider"></div>
+                                    </div>
+
+                                    <img id="tmdb-preview-poster" src="${data.posterAr || data.posterEn}" class="rounded-lg shadow-lg" style="width: 150px; height: 225px; object-fit: cover;">
                                     <span class="text-xs text-gray-500">📸 البوستر</span>
                                 </div>
                                 
-                                <!-- ➕ الصورة الخلفية (Backdrop) - جديدة! -->
-                                <div class="flex flex-col items-center gap-2 flex-1">
+                                <!-- ➕ الصورة الخلفية (Backdrop) -->
+                                <div class="flex flex-col items-center gap-2 flex-1 mt-10 md:mt-0">
                                     <div class="relative w-full overflow-hidden rounded-lg shadow-lg" style="background: #1a1a2e;">
-                                        <img src="${data.backdrop || data.poster}" 
+                                        <img id="tmdb-preview-backdrop" src="${data.backdrop || data.posterAr || data.posterEn}" 
                                             class="w-full rounded-lg" 
                                             style="height: 180px; object-fit: cover;"
-                                            onerror="this.src='${data.poster}'; this.style.opacity='0.7'">
+                                            onerror="this.src=document.getElementById('tmdb-preview-poster').src; this.style.opacity='0.7'">
                                         <div class="absolute bottom-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded">
                                             🖼️ الصورة الخلفية (Backdrop)
                                         </div>
@@ -3588,25 +3782,68 @@
                             </div>
 
                             <!-- المعلومات الأساسية -->
-                            <div class="grid grid-cols-2 gap-4 mb-6 bg-gray-900/50 p-4 rounded-lg">
-                                <div><span class="text-gray-500">العنوان:</span> <span class="text-white font-bold">${data.title}</span></div>
-                                <div><span class="text-gray-500">السنة:</span> <span class="text-white">${data.year}</span></div>
-                                <div><span class="text-gray-500">التقييم:</span> <span class="text-yellow-400">⭐ ${data.rating}</span></div>
-                                <div><span class="text-gray-500">النوع:</span> <span class="text-white">${data.isMovie ? 'فيلم' : 'مسلسل'}</span></div>
-                            </div>
+                            <div class="flex flex-col gap-4 mb-6 bg-gray-900/50 p-4 rounded-lg">
+                                <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 pb-4 border-b border-gray-800">
+                                    <div><span class="text-gray-500 block text-xs">السنة</span> <span class="text-white">${data.year}</span></div>
+                                    <div><span class="text-gray-500 block text-xs">التقييم</span> <span class="text-yellow-400">⭐ ${data.rating}</span></div>
+                                    <div><span class="text-gray-500 block text-xs">النوع</span> <span class="text-white">${data.isMovie ? 'فيلم' : 'مسلسل'}</span></div>
+                                    <div><span class="text-gray-500 block text-xs">المدة</span> <span class="text-white">${data.duration || '-'}</span></div>
+                                </div>
+                                
+                                <div class="bg-gray-800/30 p-3 rounded-lg border border-gray-700/50 relative">
+                                    <div class="absolute top-3 left-3">
+                                        <!-- Capsule for Title -->
+                                        <div class="tmdb-segmented-control">
+                                          <input type="radio" name="tmdb-title-lang" id="title-ar" value="ar" checked onchange="selectLang('title', 'ar')">
+                                          <input type="radio" name="tmdb-title-lang" id="title-en" value="en" onchange="selectLang('title', 'en')">
+                                          <label for="title-ar" data-lang="ar">عربي</label>
+                                          <label for="title-en" data-lang="en">English</label>
+                                          <div class="selection-slider"></div>
+                                        </div>
+                                    </div>
+                                    <span class="text-gray-500 block mb-2 text-xs">العنوان المختار للعرض:</span>
+                                    <h3 id="tmdb-preview-title" class="text-xl font-bold text-white pr-2 border-r-4 border-primary" dir="auto">${data.titleAr || data.titleEn || 'بدون عنوان'}</h3>
+                                </div>
 
-                            <p class="text-gray-400 mb-4 text-sm leading-relaxed">${data.description || 'لا يوجد وصف'}</p>
+                                <div class="bg-gray-800/30 p-3 rounded-lg border border-gray-700/50 relative mt-2">
+                                    <div class="absolute top-3 left-3">
+                                        <!-- Capsule for Desc -->
+                                        <div class="tmdb-segmented-control">
+                                          <input type="radio" name="tmdb-desc-lang" id="desc-ar" value="ar" checked onchange="selectLang('desc', 'ar')">
+                                          <input type="radio" name="tmdb-desc-lang" id="desc-en" value="en" onchange="selectLang('desc', 'en')">
+                                          <label for="desc-ar" data-lang="ar">عربي</label>
+                                          <label for="desc-en" data-lang="en">English</label>
+                                          <div class="selection-slider"></div>
+                                        </div>
+                                    </div>
+                                    <span class="text-gray-500 block mb-2 text-xs">الوصف المختار للعرض:</span>
+                                    <p id="tmdb-preview-desc" class="text-gray-300 text-sm leading-relaxed pr-2 border-r-4 border-primary mt-4" dir="auto">${data.descriptionAr || data.descriptionEn || 'لا يوجد وصف'}</p>
+                                </div>
+                            </div>
 
                             <!-- التصنيفات -->
                             <div class="flex flex-wrap gap-2 mb-4">
-                                ${data.genres.map(g => `<span class="bg-primary/20 text-primary px-3 py-1 rounded-full text-xs">${g}</span>`).join('')}
+                                ${data.genres.map(g => `<span class="bg-primary/20 text-primary px-3 py-1 rounded-full text-xs">${g.name || g}</span>`).join('')}
                             </div>
+
 
                             <!-- باقي المحتوى (ممثلين، مواسم، إلخ) -->
                             <div class="tree-selection mt-4">
-                                <h4 class="font-bold mb-3 text-white flex items-center gap-2">
-                                    <i class="fas fa-list-check text-primary"></i> حدد ما تريد استيراده:
-                                </h4>
+                                <div class="flex justify-between items-center mb-3">
+                                    <h4 class="font-bold text-white flex items-center gap-2">
+                                        <i class="fas fa-list-check text-primary"></i> حدد ما تريد استيراده:
+                                    </h4>
+                                    
+                                    ${data.seasons && data.seasons.length > 0 ? `
+                                    <!-- Capsule for Episodes -->
+                                    <div class="tmdb-segmented-control" style="margin: 0; width: 150px;">
+                                      <input type="radio" name="tmdb-episodes-lang" id="ep-ar" value="ar" checked onchange="selectLang('episodes', 'ar')">
+                                      <input type="radio" name="tmdb-episodes-lang" id="ep-en" value="en" onchange="selectLang('episodes', 'en')">
+                                      <label for="ep-ar" data-lang="ar">عربي</label>
+                                      <label for="ep-en" data-lang="en">English</label>
+                                      <div class="selection-slider"></div>
+                                    </div>` : ''}
+                                </div>
                                 <!-- Actors Section -->
                                 <div class="tree-node mb-4">
                                     <div class="tree-header" onclick="const cb = this.querySelector('input'); cb.checked = !cb.checked; cb.dispatchEvent(new Event('change'));">
@@ -3644,7 +3881,7 @@
                                                             onchange="toggleTMDBGroup('episode-cb-${sIdx}', this.checked); event.stopPropagation();" 
                                                             class="season-cb accent-primary" onclick="event.stopPropagation();">
                                                         <div>
-                                                            <span class="text-sm font-bold text-white">${s.title}</span>
+                                                            <span id="tmdb-preview-season-title-${sIdx}" class="text-sm font-bold text-white" dir="auto">${s.titleAr || s.titleEn || 'موسم'}</span>
                                                             <span class="text-[10px] text-gray-500 mr-2">(${s.episodes.length} حلقة)</span>
                                                         </div>
                                                     </div>
@@ -3653,7 +3890,7 @@
                                                             <div class="episode-item" onclick="const cb = this.querySelector('input'); cb.checked = !cb.checked; event.stopPropagation();">
                                                                 <input type="checkbox" id="episode-${sIdx}-${eIdx}" data-sindex="${sIdx}" data-eindex="${eIdx}" checked class="episode-cb-${sIdx} accent-primary" onclick="event.stopPropagation();">
                                                                 <div class="flex flex-col">
-                                                                    <span class="text-[11px] font-medium text-white">ح${ep.episodeNumber}: ${ep.title.substring(0, 30)}</span>
+                                                                    <span id="tmdb-preview-ep-title-${sIdx}-${eIdx}" class="text-[11px] font-medium text-white truncate w-24" dir="auto" title="ح${ep.episodeNumber}: ${(ep.titleAr || ep.titleEn || '').replace(/"/g, '&quot;')}">ح${ep.episodeNumber}: ${(ep.titleAr || ep.titleEn || '').substring(0, 30)}</span>
                                                                     <span class="text-[9px] text-gray-500">${ep.duration}</span>
                                                                 </div>
                                                             </div>
@@ -3677,73 +3914,40 @@
                 `;
                 }
 
-                async function loadUsers() {
-                    const loading = document.getElementById('users-loading');
-                    if (loading) loading.style.display = 'flex';
-                    
-                    try {
-                        const response = await fetch(`${API_BASE}/users`, {
-                            headers: { 'x-admin-token': localStorage.getItem('adminToken') }
-                        });
-                        const users = await response.json();
-                        
-                        // جلب الملفات الشخصية لكل مستخدم
-                        const usersWithProfiles = await Promise.all(users.map(async (user) => {
-                            const profilesRes = await fetch(`${API_BASE}/users/${user.id}/profiles`, {
-                                headers: { 'x-admin-token': localStorage.getItem('adminToken') }
+                function selectLang(field, lang) {
+                    if (!window.currentTMDBData) return;
+                    const data = window.currentTMDBData;
+
+                    // Update Main Data Display
+                    if (field === 'title') {
+                        document.getElementById('tmdb-preview-title').textContent = lang === 'ar' ? (data.titleAr || data.titleEn || 'بدون عنوان') : (data.titleEn || data.titleAr || 'Untitled');
+                    } else if (field === 'desc') {
+                        document.getElementById('tmdb-preview-desc').textContent = lang === 'ar' ? (data.descriptionAr || data.descriptionEn || 'لا يوجد وصف') : (data.descriptionEn || data.descriptionAr || 'No description');
+                    } else if (field === 'poster') {
+                        document.getElementById('tmdb-preview-poster').src = lang === 'ar' ? (data.posterAr || data.posterEn) : (data.posterEn || data.posterAr);
+                    } else if (field === 'episodes') {
+                        // Update Seasons and Episodes Display
+                        if (data.seasons && data.seasons.length > 0) {
+                            data.seasons.forEach((s, sIdx) => {
+                                const stEl = document.getElementById(`tmdb-preview-season-title-${sIdx}`);
+                                if (stEl) stEl.textContent = lang === 'ar' ? (s.titleAr || s.titleEn || 'موسم') : (s.titleEn || s.titleAr || 'Season');
+
+                                if (s.episodes) {
+                                    s.episodes.forEach((ep, eIdx) => {
+                                        const epEl = document.getElementById(`tmdb-preview-ep-title-${sIdx}-${eIdx}`);
+                                        if (epEl) {
+                                            const t = lang === 'ar' ? (ep.titleAr || ep.titleEn || '') : (ep.titleEn || ep.titleAr || '');
+                                            epEl.textContent = `ح${ep.episodeNumber}: ${t.substring(0, 30)}`;
+                                            epEl.title = `ح${ep.episodeNumber}: ${t}`;
+                                        }
+                                    });
+                                }
                             });
-                            const profiles = await profilesRes.json();
-                            return { ...user, profiles };
-                        }));
-                        
-                        const tableBody = document.querySelector('#users-table tbody');
-                        if (tableBody) {
-                            tableBody.innerHTML = usersWithProfiles.map(user => `
-                                <tr>
-                                    <td><img src="${user.profile_image || '/uploads/users/default.png'}" class="actor-image" onerror="this.src='/uploads/users/default.png'"></td>
-                                    <td><div class="font-bold text-white">${user.name || 'مستخدم'}</div></td>
-                                    <td>${user.username}</td>
-                                    <td>${user.age || 'غير محدد'}</td>
-                                    <td>
-                                        <div class="flex flex-col gap-1">
-                                            ${user.profiles?.map(p => `
-                                                <div class="flex items-center justify-between gap-2 bg-white/5 p-1 rounded">
-                                                    <span class="text-xs">${p.name}</span>
-                                                    <div class="flex gap-1">
-                                                        <button class="action-btn btn-edit action-btn-sm" onclick="editProfile('${p.id}')" title="تعديل القيود">
-                                                            <i class="fas fa-shield-alt"></i>
-                                                        </button>
-                                                        <button class="action-btn btn-delete action-btn-sm" onclick="deleteProfile('${p.id}', '${p.name}')">
-                                                            <i class="fas fa-trash"></i>
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            `).join('') || '<span class="text-gray-500 text-xs">لا يوجد ملفات شخصية</span>'}
-                                            <button class="btn-secondary btn-sm mt-1" onclick="showAddProfileModal('${user.id}', '${user.username}')">
-                                                <i class="fas fa-plus"></i> إضافة بروفايل
-                                            </button>
-                                        </div>
-                                    </td>
-                                    <td>${new Date(user.created_at).toLocaleDateString('ar')}</td>
-                                    <td>
-                                        <div class="action-buttons">
-                                            <button class="action-btn btn-edit" onclick="editUser('${user.id}')">
-                                                <i class="fas fa-edit"></i>
-                                            </button>
-                                            <button class="action-btn btn-delete" onclick="deleteUser('${user.id}', '${user.username}')">
-                                                <i class="fas fa-trash"></i>
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            `).join('');
                         }
-                        if (loading) loading.style.display = 'none';
-                    } catch (error) {
-                        console.error('Error loading users:', error);
-                        showAlert('حدث خطأ في تحميل المستخدمين', 'error');
                     }
                 }
+
+                // loadUsers moved to Users & Groups Logic section at the bottom of the file
 
 
                 async function applyTMDBImport() {
@@ -3752,6 +3956,25 @@
 
                     const btn = document.querySelector('#tmdb-preview .btn-primary');
                     const originalText = btn.innerHTML;
+
+                    // --- Read User Language Selections ---
+                    const titleLang = document.querySelector('input[name="tmdb-title-lang"]:checked')?.value || 'ar';
+                    const descLang = document.querySelector('input[name="tmdb-desc-lang"]:checked')?.value || 'ar';
+                    const posterLang = document.querySelector('input[name="tmdb-poster-lang"]:checked')?.value || 'ar';
+                    let epLang = 'ar';
+                    if (!data.isMovie && data.seasons && data.seasons.length > 0) {
+                        epLang = document.querySelector('input[name="tmdb-episodes-lang"]:checked')?.value || 'ar';
+                    }
+
+                    // Apply selections to main data
+                    data.title = titleLang === 'ar' ? data.titleAr : data.titleEn;
+                    data.description = descLang === 'ar' ? data.descriptionAr : data.descriptionEn;
+                    data.poster = posterLang === 'ar' ? data.posterAr : data.posterEn;
+                    
+                    // Fallbacks in case selected language is empty
+                    if (!data.title) data.title = titleLang === 'ar' ? data.titleEn : data.titleAr;
+                    if (!data.poster) data.poster = posterLang === 'ar' ? data.posterEn : data.posterAr;
+                    data.backdrop = data.backdrop || data.poster;
 
                     // --- Filter Data Based on User Selection ---
 
@@ -3797,6 +4020,8 @@
                             },
                             body: JSON.stringify({
                                 title: data.title,
+                                titleAr: data.titleAr,
+                                titleEn: data.titleEn,
                                 year: data.year,
                                 poster: data.poster,
                                 backdrop: data.backdrop,
@@ -3833,9 +4058,9 @@
                                     body: JSON.stringify({
                                         seriesId: contentId,
                                         seasonNumber: season.seasonNumber,
-                                        title: season.title,
-                                        poster: season.poster,
-                                        description: season.description,
+                                        title: epLang === 'ar' ? season.titleAr : season.titleEn || season.titleAr,
+                                        poster: epLang === 'ar' ? season.posterAr : season.posterEn || season.posterAr,
+                                        description: epLang === 'ar' ? season.descriptionAr : season.descriptionEn || season.descriptionAr,
                                         year: season.year
                                     })
                                 });
@@ -3853,10 +4078,10 @@
                                             seriesId: contentId,
                                             seasonId: seasonId,
                                             episodeNumber: ep.episodeNumber,
-                                            title: ep.title,
-                                            description: ep.description,
+                                            title: epLang === 'ar' ? ep.titleAr : ep.titleEn || ep.titleAr,
+                                            description: epLang === 'ar' ? ep.descriptionAr : ep.descriptionEn || ep.descriptionAr,
                                             duration: ep.duration,
-                                            thumbnail: ep.poster,
+                                            thumbnail: ep.image,
                                             videoUrl: '',
                                             isFree: 0
                                         })
@@ -4253,40 +4478,180 @@
                         const response = await fetch(`${API_BASE}/actors`);
                         const actors = await response.json();
 
-                        const tableBody = document.querySelector('#actors-table tbody');
-                        if (tableBody) {
-                            tableBody.innerHTML = actors.map(item => `
-                        <tr>
-                            <td>
-                                <img src="${item.image || '/uploads/actors/default.jpg'}" 
-                                     class="actor-image"
-                                     onerror="this.src='/uploads/actors/default.jpg'">
-                            </td>
-                            <td>
-                                <div class="font-bold text-white">${item.name}</div>
-                                ${item.bio ? `<div class="text-xs text-gray-500 mt-1">${item.bio.substring(0, 80)}...</div>` : ''}
-                            </td>
-                            <td>${item.nationality || 'غير معروف'}</td>
-                            <td>${item.birthDate ? new Date(item.birthDate).toLocaleDateString('ar') : 'غير معروف'}</td>
-                            <td>${((item.movies?.length || 0) + (item.series?.length || 0)) || 0}</td>
-                            <td>
-                                <div class="action-buttons">
-                                    <button class="action-btn btn-edit" onclick="editActor('${item.id}')">
-                                        <i class="fas fa-edit"></i>
-                                        تعديل
-                                    </button>
-                                    <button class="action-btn btn-delete" onclick="deleteActor('${item.id}', '${item.name}')">
-                                        <i class="fas fa-trash"></i>
-                                        حذف
-                                    </button>
-                                </div>
-                            </td>
-                        </tr>
-                    `).join('');
+                        const grid = document.getElementById('actors-grid');
+                        if (grid) {
+                            grid.innerHTML = actors.map(item => {
+                                const moviesCount = Array.isArray(item.movies) ? item.movies.length : 0;
+                                const seriesCount = Array.isArray(item.series) ? item.series.length : 0;
+                                const totalWorks = moviesCount + seriesCount;
+
+                                return `
+                                    <div class="grid-item actor-card">
+                                        <div class="flex items-start gap-4 mb-4">
+                                            <img src="${item.image || '/uploads/actors/default.jpg'}" 
+                                                 class="w-16 h-16 rounded-lg object-cover border border-gray-700 shadow-md"
+                                                 onerror="this.src='/uploads/actors/default.jpg'">
+                                            <div class="flex-1 min-w-0">
+                                                <h3 class="font-bold text-white truncate text-base">${item.name}</h3>
+                                                <div class="text-xs text-primary mb-1">${item.nationality || 'جنسية غير معروفة'}</div>
+                                                <div class="text-[10px] text-gray-500">🎂 ${item.birthDate ? new Date(item.birthDate).toLocaleDateString('ar') : 'تاريخ غير معروف'}</div>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="bg-black/20 p-2 rounded-lg mb-4 h-16 overflow-hidden">
+                                            <p class="text-[11px] text-gray-400 leading-relaxed">
+                                                ${item.bio ? item.bio.substring(0, 100) + '...' : 'لا توجد سيرة ذاتية متوفرة لهذا الممثل.'}
+                                            </p>
+                                        </div>
+
+                                        <div class="flex items-center justify-between mt-auto pt-3 border-t border-gray-800">
+                                            <div class="badge bg-primary/10 text-primary text-[10px] px-2 py-1 rounded">
+                                                🎬 ${totalWorks} عمل
+                                            </div>
+                                            <div class="flex gap-1">
+                                                <button class="action-btn btn-view action-btn-sm" onclick="showActorWorks('${item.id}', '${item.name.replace(/'/g, "\\'")}')" title="إدارة الأعمال">
+                                                    <i class="fas fa-link"></i>
+                                                </button>
+                                                <button class="action-btn btn-edit action-btn-sm" onclick="editActor('${item.id}')" title="تعديل البيانات">
+                                                    <i class="fas fa-edit"></i>
+                                                </button>
+                                                <button class="action-btn btn-delete action-btn-sm" onclick="deleteActor('${item.id}', '${item.name.replace(/'/g, "\\'")}')" title="حذف الممثل">
+                                                    <i class="fas fa-trash"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                `;
+                            }).join('');
                         }
                     } catch (error) {
                         console.error('Error loading actors:', error);
                         showAlert('حدث خطأ في تحميل الممثلين', 'error');
+                    }
+                }
+
+                async function showActorWorks(actorId, actorName) {
+                    document.getElementById('manage-actor-id').value = actorId;
+                    document.querySelector('#actor-works-modal .modal-title').textContent = `إدارة أعمال: ${actorName}`;
+                    
+                    const select = document.getElementById('actor-add-work-select');
+                    select.innerHTML = '<option value="">جاري التحميل...</option>';
+
+                    try {
+                        // Load all content for selection
+                        const contentRes = await fetch(`${API_BASE}/series`);
+                        const allContent = await contentRes.json();
+                        select.innerHTML = '<option value="">اختر مسلسل أو فيلم للإضافة...</option>' + 
+                            allContent.map(c => `<option value="${c.id}">${c.title} (${c.isMovie ? 'فيلم' : 'مسلسل'})</option>`).join('');
+
+                        // Load current works
+                        await refreshActorWorksTable(actorId);
+
+                        document.getElementById('actor-works-modal').style.display = 'flex';
+                    } catch (error) {
+                        console.error('Error loading actor works:', error);
+                        showAlert('حدث خطأ في تحميل البيانات', 'error');
+                    }
+                }
+
+                async function refreshActorWorksTable(actorId) {
+                    const tableBody = document.querySelector('#actor-works-table tbody');
+                    tableBody.innerHTML = '<tr><td colspan="5" class="text-center py-4">جاري التحميل...</td></tr>';
+
+                    try {
+                        const res = await fetch(`${API_BASE}/actors/${actorId}`);
+                        const actor = await res.json();
+                        
+                        // We use the 'roles' property returned by the detailed GET /api/actors/:id
+                        const actorWorks = actor.roles || [];
+                        
+                        if (actorWorks.length === 0) {
+                            tableBody.innerHTML = '<tr><td colspan="5" class="text-center py-8 text-gray-500">لا توجد أعمال مرتبطة حالياً</td></tr>';
+                            return;
+                        }
+
+                        // Fetch all series to get posters (ideally we'd have a specific API for this)
+                        const contentRes = await fetch(`${API_BASE}/series`);
+                        const allContent = await contentRes.json();
+
+                        tableBody.innerHTML = actorWorks.map(work => {
+                            const details = allContent.find(c => c.id === work.contentId);
+                            return `
+                                <tr>
+                                    <td><img src="${details?.poster || '/uploads/posters/default.jpg'}" class="w-10 h-14 object-cover rounded shadow-sm"></td>
+                                    <td class="font-medium text-white">${work.contentTitle}</td>
+                                    <td><span class="status-badge ${work.contentType === 'movie' ? 'status-active' : 'status-inactive'}">${work.contentType === 'movie' ? 'فيلم' : 'مسلسل'}</span></td>
+                                    <td>${details?.year || 'غير معروف'}</td>
+                                    <td>
+                                        <button class="action-btn btn-delete action-btn-sm" onclick="removeWorkFromActor('${actorId}', '${work.contentId}')">
+                                            <i class="fas fa-unlink"></i>
+                                            إزالة
+                                        </button>
+                                    </td>
+                                </tr>
+                            `;
+                        }).join('');
+                    } catch (error) {
+                        console.error('Error refreshing actor works table:', error);
+                        tableBody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-danger">خطأ في التحميل</td></tr>';
+                    }
+                }
+
+                async function addWorkToActor() {
+                    const actorId = document.getElementById('manage-actor-id').value;
+                    const workId = document.getElementById('actor-add-work-select').value;
+                    
+                    if (!workId) {
+                        showAlert('يرجى اختيار عمل للإضافة', 'warning');
+                        return;
+                    }
+
+                    try {
+                        const response = await fetch(`${API_BASE}/actors/${actorId}/works`, {
+                            method: 'POST',
+                            headers: { 
+                                'Content-Type': 'application/json',
+                                'x-admin-token': localStorage.getItem('adminToken')
+                            },
+                            body: JSON.stringify({ workId })
+                        });
+
+                        const result = await response.json();
+                        if (result.success) {
+                            showAlert('تم إضافة العمل بنجاح', 'success');
+                            await refreshActorWorksTable(actorId);
+                            loadActors(); // Update the counter on the main grid
+                        } else {
+                            showAlert(result.error || 'فشل في إضافة العمل', 'error');
+                        }
+                    } catch (error) {
+                        console.error('Error adding work to actor:', error);
+                        showAlert('حدث خطأ في الخادم', 'error');
+                    }
+                }
+
+                async function removeWorkFromActor(actorId, workId) {
+                    if (!confirm('هل أنت متأكد من إزالة هذا العمل من قائمة أعمال الممثل؟')) return;
+
+                    try {
+                        const response = await fetch(`${API_BASE}/actors/${actorId}/works/${workId}`, {
+                            method: 'DELETE',
+                            headers: { 
+                                'x-admin-token': localStorage.getItem('adminToken')
+                            }
+                        });
+
+                        const result = await response.json();
+                        if (result.success) {
+                            showAlert('تم إزالة العمل بنجاح', 'success');
+                            await refreshActorWorksTable(actorId);
+                            loadActors(); // Update the counter on the main grid
+                        } else {
+                            showAlert(result.error || 'فشل في إزالة العمل', 'error');
+                        }
+                    } catch (error) {
+                        console.error('Error removing work from actor:', error);
+                        showAlert('حدث خطأ في الخادم', 'error');
                     }
                 }
 
@@ -4348,6 +4713,60 @@
                     } catch (error) {
                         console.error('Error loading actor roles:', error);
                         showAlert('حدث خطأ في تحميل أدوار الممثلين', 'error');
+                    }
+                }
+
+                
+
+                async function viewGenreContent(id, name) {
+                    const modal = document.getElementById('view-genre-content-modal');
+                    const title = document.getElementById('genre-content-title');
+                    const grid = document.getElementById('genre-content-grid');
+                    const loading = document.getElementById('genre-content-loading');
+                    const empty = document.getElementById('genre-content-empty');
+
+                    title.innerText = `المحتوى المرتبط بتصنيف: ${name}`;
+                    grid.innerHTML = '';
+                    loading.classList.remove('hidden');
+                    empty.classList.add('hidden');
+                    openModal('view-genre-content-modal');
+
+                    try {
+                        const controller = new AbortController();
+                        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 seconds timeout
+
+                        const response = await fetch(`${API_BASE}/genres/${id}`, { signal: controller.signal });
+                        clearTimeout(timeoutId);
+
+                        if (!response.ok) throw new Error(`Server returned ${response.status}`);
+                        
+                        const data = await response.json();
+                        loading.classList.add('hidden');
+                        
+                        if (!data || !data.content || data.content.length === 0) {
+                            empty.classList.remove('hidden');
+                            return;
+                        }
+
+                        grid.innerHTML = data.content.map(item => `
+                            <div class="grid-item" style="padding: 0; overflow: hidden; position: relative;">
+                                <div style="position: relative; aspect-ratio: 2/3;">
+                                    <img src="${item.poster || '/uploads/posters/default.png'}" style="width: 100%; height: 100%; object-fit: cover;">
+                                    <div style="position: absolute; top: 8px; right: 8px;">
+                                        <span style="background: var(--primary); color: white; font-size: 10px; padding: 2px 6px; border-radius: 4px;">${item.type === 'movie' ? 'فيلم' : 'مسلسل'}</span>
+                                    </div>
+                                </div>
+                                <div style="padding: 10px;">
+                                    <h4 style="font-size: 12px; font-weight: bold; color: white; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${item.title}</h4>
+                                    <p style="font-size: 10px; color: var(--text-gray);">${item.year}</p>
+                                </div>
+                            </div>
+                        `).join('');
+
+                    } catch (error) {
+                        console.error('Error loading genre content:', error);
+                        loading.classList.add('hidden');
+                        showAlert('حدث خطأ في تحميل المحتوى', 'error');
                     }
                 }
 
@@ -5650,6 +6069,8 @@
 
                         const form = document.getElementById('add-actor-form');
                         form.querySelector('[name="name"]').value = actor.name;
+                        form.querySelector('[name="nameAr"]').value = actor.nameAr || '';
+                        form.querySelector('[name="nameEn"]').value = actor.nameEn || '';
                         form.querySelector('[name="nationality"]').value = actor.nationality || '';
                         form.querySelector('[name="birthDate"]').value = actor.birthDate ? actor.birthDate.split('T')[0] : '';
                         form.querySelector('[name="bio"]').value = actor.bio || '';
@@ -5716,34 +6137,6 @@
                     } catch (error) {
                         console.error('Error loading actor role for edit:', error);
                         showAlert('حدث خطأ في تحميل بيانات دور الممثل', 'error');
-                    }
-                }
-
-                async function viewGenreContent(id, name) {
-                    try {
-                        const response = await fetch(`${API_BASE}/genres/${id}`);
-                        const data = await response.json();
-
-                        document.getElementById('genre-content-title').innerText = `الأعمال المرتبطة بتصنيف: ${name}`;
-                        const list = document.getElementById('genre-content-list');
-
-                        if (data.content && data.content.length > 0) {
-                            list.innerHTML = data.content.map(item => `
-                            <div class="bg-gray-800 rounded-lg overflow-hidden border border-gray-700">
-                                <img src="${item.poster}" class="w-full h-32 object-cover">
-                                <div class="p-2 text-center">
-                                    <div class="text-xs font-bold text-white truncate">${item.title}</div>
-                                    <div class="text-[10px] text-gray-500">${item.year} • ${item.type === 'movie' ? 'فيلم' : 'مسلسل'}</div>
-                                </div>
-                            </div>
-                        `).join('');
-                        } else {
-                            list.innerHTML = '<div class="col-span-full text-center py-10 text-gray-500">لا توجد أعمال مرتبطة بهذا التصنيف حالياً</div>';
-                        }
-
-                        openModal('view-genre-content-modal');
-                    } catch (error) {
-                        showAlert('خطأ في تحميل البيانات', 'error');
                     }
                 }
 
@@ -6274,6 +6667,12 @@
                 // ==========================================
                 // 11. وظائف مساعدة
                 // ==========================================
+                function openModal(modalId) {
+                    const modal = document.getElementById(modalId);
+                    if (modal) {
+                        modal.style.display = 'flex';
+                    }
+                }
                 function closeModal(modalId) {
                     const modal = document.getElementById(modalId);
                     if (modal) {
@@ -6534,12 +6933,15 @@
                 }
 
                 // عند اختيار ملف فيديو للحلقة
-                document.getElementById('episode-video-input').addEventListener('change', async function (e) {
-                    if (e.target.files[0]) {
-                        const duration = await getVideoDuration(e.target.files[0]);
-                        document.getElementById('episode-duration').value = episodes.duration;
-                    }
-                });
+                const episodeVideoInput = document.getElementById('episode-video-input');
+                if (episodeVideoInput) {
+                    episodeVideoInput.addEventListener('change', async function (e) {
+                        if (e.target.files[0]) {
+                            const duration = await getVideoDuration(e.target.files[0]);
+                            document.getElementById('episode-duration').value = duration;
+                        }
+                    });
+                }
 
                 // ==========================================
                 // إدارة الملفات
@@ -7775,17 +8177,139 @@
 
             
 // ==================== Users & Groups Logic ====================
-let allGroups = [];
+
+async function loadMetadata() {
+    try {
+        const genRes = await fetch(`${API_BASE}/genres`);
+        const genres = await genRes.json();
+        allGenres = Array.isArray(genres) ? genres : [];
+        
+        const titlesRes = await fetch(`${API_BASE}/series`);
+        const series = await titlesRes.json();
+        const moviesRes = await fetch(`${API_BASE}/movies`);
+        const movies = await moviesRes.json();
+        allTitles = [...(Array.isArray(series)?series:[]), ...(Array.isArray(movies)?movies:[])];
+        
+        const optgroup = document.getElementById('genres-optgroup');
+        if(optgroup) {
+            optgroup.innerHTML = allGenres.map(g => `<option value="${g.name}">${g.name}</option>`).join('');
+        }
+    } catch(e) { console.error('Error loading metadata:', e); }
+}
+
+function addBlockedGenre(genre) {
+    if(!genre) return;
+    const input = document.getElementById('user-blocked-genres');
+    let genres = input.value ? input.value.split(',').map(s=>s.trim()) : [];
+    if(!genres.includes(genre)) {
+        genres.push(genre);
+        input.value = genres.join(',');
+        renderBlockedGenres();
+    }
+}
+
+function removeBlockedGenre(genre) {
+    const input = document.getElementById('user-blocked-genres');
+    let genres = input.value.split(',').map(s=>s.trim()).filter(g => g !== genre);
+    input.value = genres.join(',');
+    renderBlockedGenres();
+}
+
+function renderBlockedGenres() {
+    const input = document.getElementById('user-blocked-genres');
+    const container = document.getElementById('user-blocked-genres-list');
+    const genres = input.value ? input.value.split(',').filter(Boolean) : [];
+    container.innerHTML = genres.map(g => `
+        <span class="bg-primary/20 text-primary px-3 py-1 rounded-full text-xs font-bold cursor-pointer hover:bg-accent/20 hover:text-accent transition-colors" onclick="removeBlockedGenre('${g}')">
+            ${g} <i class="fas fa-times mr-1"></i>
+        </span>
+    `).join('');
+}
+
+function searchTitlesForBlock(q) {
+    const resDiv = document.getElementById('titles-search-results');
+    if(!q || q.length < 2) { resDiv.classList.add('hidden'); return; }
+    
+    const matches = allTitles.filter(t => 
+        (t.title || '').toLowerCase().includes(q.toLowerCase()) || 
+        (t.titleAr || '').includes(q) || 
+        (t.titleEn || '').toLowerCase().includes(q.toLowerCase())
+    ).slice(0, 10);
+    
+    if(matches.length > 0) {
+        resDiv.innerHTML = matches.map(t => `
+            <div class="p-3 hover:bg-white/5 cursor-pointer flex items-center gap-3 border-b border-white/5" onclick="addBlockedTitle('${t.title || t.titleEn || t.titleAr}')">
+                <img src="${t.poster}" class="w-8 h-10 object-cover rounded">
+                <span class="text-sm font-bold">${t.title || t.titleEn || t.titleAr}</span>
+            </div>
+        `).join('');
+        resDiv.classList.remove('hidden');
+    } else {
+        resDiv.classList.add('hidden');
+    }
+}
+
+function addBlockedTitle(title) {
+    const input = document.getElementById('user-blocked-titles');
+    let titles = input.value ? input.value.split(',').map(s=>s.trim()) : [];
+    if(!titles.includes(title)) {
+        titles.push(title);
+        input.value = titles.join(',');
+        renderBlockedTitles();
+    }
+    document.getElementById('titles-search-results').classList.add('hidden');
+}
+
+function removeBlockedTitle(title) {
+    const input = document.getElementById('user-blocked-titles');
+    let titles = input.value.split(',').map(s=>s.trim()).filter(t => t !== title);
+    input.value = titles.join(',');
+    renderBlockedTitles();
+}
+
+function renderBlockedTitles() {
+    const input = document.getElementById('user-blocked-titles');
+    const container = document.getElementById('user-blocked-titles-list');
+    const titles = input.value ? input.value.split(',').filter(Boolean) : [];
+    container.innerHTML = titles.map(t => `
+        <span class="bg-accent/20 text-accent px-3 py-1 rounded-full text-xs font-bold cursor-pointer hover:bg-primary/20 hover:text-primary transition-colors" onclick="removeBlockedTitle('${t}')">
+            ${t} <i class="fas fa-times mr-1"></i>
+        </span>
+    `).join('');
+}
+
+async function uploadUserAvatar(input) {
+    if(!input.files || !input.files[0]) return;
+    const formData = new FormData();
+    formData.append('file', input.files[0]);
+    formData.append('type', 'user');
+    
+    try {
+        const res = await fetch('/api/upload', {
+            method: 'POST',
+            headers: { 'x-admin-token': localStorage.getItem('adminToken') },
+            body: formData
+        });
+        const data = await res.json();
+        if(data.success) {
+            document.getElementById('user-avatar-url').value = data.url;
+            document.getElementById('user-avatar-preview').src = data.url;
+        }
+    } catch(e) { console.error(e); }
+}
+
+
 
 async function loadGroups() {
+    await loadMetadata();
     try {
-        const res = await fetch('/api/admin/groups', { headers: { 'x-admin-token': localStorage.getItem('adminToken') } });
+        const res = await fetch(`${API_BASE}/admin/groups`, { headers: { 'x-admin-token': localStorage.getItem('adminToken') } });
         const groups = await res.json();
-        allGroups = groups;
+        allGroups = Array.isArray(groups) ? groups : [];
         
         const tbody = document.querySelector('#groups-table tbody');
         if(tbody) {
-            tbody.innerHTML = groups.map(g => `
+            tbody.innerHTML = allGroups.map(g => `
                 <tr>
                     <td>${g.name}</td>
                     <td>${g.min_age}</td>
@@ -7800,47 +8324,82 @@ async function loadGroups() {
 
         const select = document.getElementById('user-group');
         if(select) {
-            select.innerHTML = '<option value="">بدون فئة</option>' + groups.map(g => `<option value="${g.id}">${g.name}</option>`).join('');
+            select.innerHTML = '<option value="">بدون فئة</option>' + allGroups.map(g => `<option value="${g.id}">${g.name}</option>`).join('');
         }
-    } catch(e) { console.error(e); }
+    } catch(e) { console.error('Error loading groups:', e); }
 }
 
 async function loadUsers() {
+    console.log('Loading users...');
+    const tbody = document.querySelector('#users-table tbody');
+    if(tbody) tbody.innerHTML = '<tr><td colspan="7" class="text-center p-8 text-gray-500"><i class="fas fa-spinner fa-spin mr-2"></i> جاري تحميل المستخدمين...</td></tr>';
+    
     try {
-        const res = await fetch('/api/admin/users', { headers: { 'x-admin-token': localStorage.getItem('adminToken') } });
-        const users = await res.json();
+        const token = localStorage.getItem('adminToken');
+        if(!token) {
+            if(tbody) tbody.innerHTML = '<tr><td colspan="7" class="text-center p-8 text-red-500">خطأ: لم يتم العثور على توكن الإدمن. يرجى تسجيل الخروج والدخول مرة أخرى.</td></tr>';
+            return;
+        }
+
+        const res = await fetch(`${API_BASE}/admin/users`, { headers: { 'x-admin-token': token } });
+        if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            throw new Error(errData.error || `HTTP ${res.status}`);
+        }
         
-        const tbody = document.querySelector('#users-table tbody');
+        const users = await res.json();
+        console.log('Users loaded:', users);
+        
+        if(!Array.isArray(users)) {
+            if(tbody) tbody.innerHTML = `<tr><td colspan="7" class="text-center p-8 text-red-500">خطأ: تنسيق البيانات غير صحيح.</td></tr>`;
+            return;
+        }
+
         if(tbody) {
-            tbody.innerHTML = users.map(u => {
-                const group = allGroups.find(g => g.id === u.groupId);
-                return `
-                <tr>
-                    <td><img src="${u.avatar || 'placeholder.jpg'}" class="actor-image-small"></td>
-                    <td>${u.name || ''}</td>
-                    <td>${u.username || ''}</td>
-                    <td>${u.age || 0}</td>
-                    <td>${group ? group.name : 'بدون فئة'}</td>
-                    <td>${new Date(u.createdAt).toLocaleDateString()}</td>
-                    <td>
-                        <button class="action-btn btn-view" onclick="viewUserHistory('${u.id}')"><i class="fas fa-history"></i></button>
-                        <button class="action-btn btn-edit" onclick="editUser('${u.id}', '${encodeURIComponent(JSON.stringify(u))}')"><i class="fas fa-edit"></i></button>
-                        <button class="action-btn btn-delete" onclick="deleteUser('${u.id}')"><i class="fas fa-trash"></i></button>
-                    </td>
-                </tr>
-            `}).join('');
+            if (users.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" class="text-center p-8 text-gray-500">لا يوجد مستخدمين حالياً في قاعدة البيانات.</td></tr>';
+            } else {
+                tbody.innerHTML = users.map(u => {
+                    const group = Array.isArray(allGroups) ? allGroups.find(g => g.id === u.groupId) : null;
+                    return `
+                    <tr class="hover:bg-white/5 transition-colors">
+                        <td><img src="${u.avatar || '/uploads/users/default.png'}" class="w-10 h-10 rounded-full object-cover border border-white/10" onerror="this.src='/uploads/users/default.png'"></td>
+                        <td class="font-bold">${u.name || 'مستخدم'}</td>
+                        <td class="text-gray-400">${u.username || ''}</td>
+                        <td>${u.age || 0} سنة</td>
+                        <td><span class="px-2 py-1 bg-white/5 rounded text-xs">${group ? group.name : 'بدون فئة'}</span></td>
+                        <td class="text-xs text-gray-500">${u.createdAt ? new Date(u.createdAt).toLocaleDateString('ar-EG') : 'غير معروف'}</td>
+                        <td>
+                            <div class="flex gap-2">
+                                <button class="action-btn btn-view" onclick="viewUserHistory('${u.id}')" title="سجل المشاهدة"><i class="fas fa-history"></i></button>
+                                <button class="action-btn btn-edit" onclick="editUser('${u.id}', '${encodeURIComponent(JSON.stringify(u))}')" title="تعديل"><i class="fas fa-edit"></i></button>
+                                <button class="action-btn btn-delete" onclick="deleteUser('${u.id}')" title="حذف"><i class="fas fa-trash"></i></button>
+                            </div>
+                        </td>
+                    </tr>
+                `}).join('');
+            }
         }
 
         const histSelect = document.getElementById('history-user-select');
         if(histSelect) {
             histSelect.innerHTML = '<option value="">اختر المستخدم</option>' + users.map(u => `<option value="${u.id}">${u.name}</option>`).join('');
         }
-    } catch(e) { console.error(e); }
+    } catch(e) { 
+        console.error('Error loading users:', e);
+        if(tbody) tbody.innerHTML = `<tr><td colspan="7" class="text-center p-8 text-red-500"><i class="fas fa-exclamation-triangle mr-2"></i> خطأ في تحميل البيانات: ${e.message}</td></tr>`;
+    }
 }
 
 function openUserModal() {
     document.getElementById('user-form').reset();
     document.getElementById('user-id').value = '';
+    document.getElementById('user-avatar-url').value = '';
+    document.getElementById('user-avatar-preview').src = '/uploads/users/default.png';
+    document.getElementById('user-blocked-genres').value = '';
+    document.getElementById('user-blocked-titles').value = '';
+    renderBlockedGenres();
+    renderBlockedTitles();
     document.getElementById('user-modal-title').innerText = 'إضافة مستخدم';
     document.getElementById('user-modal').style.display = 'flex';
 }
@@ -7853,11 +8412,16 @@ function editUser(id, userDataEnc) {
     document.getElementById('user-password').value = u.password || '';
     document.getElementById('user-age').value = u.age || 0;
     document.getElementById('user-group').value = u.groupId || '';
+    document.getElementById('user-avatar-url').value = u.avatar || '';
+    document.getElementById('user-avatar-preview').src = u.avatar || '/uploads/users/default.png';
     
     let custom = {titles:[], genres:[]};
-    try { custom = JSON.parse(u.custom_restrictions || '{"titles":[],"genres":[]}'); }catch(e){}
-    document.getElementById('user-blocked-genres').value = (custom.genres || []).join(', ');
-    document.getElementById('user-blocked-titles').value = (custom.titles || []).join(', ');
+    try { custom = typeof u.custom_restrictions === 'string' ? JSON.parse(u.custom_restrictions) : u.custom_restrictions; }catch(e){}
+    document.getElementById('user-blocked-genres').value = (custom.genres || []).join(',');
+    document.getElementById('user-blocked-titles').value = (custom.titles || []).join(',');
+    
+    renderBlockedGenres();
+    renderBlockedTitles();
     
     document.getElementById('user-modal-title').innerText = 'تعديل مستخدم';
     document.getElementById('user-modal').style.display = 'flex';
@@ -7869,8 +8433,9 @@ async function saveUser() {
         name: document.getElementById('user-name').value,
         username: document.getElementById('user-username').value,
         password: document.getElementById('user-password').value,
-        age: parseInt(document.getElementById('user-age').value),
+        age: parseInt(document.getElementById('user-age').value) || 0,
         groupId: document.getElementById('user-group').value || null,
+        avatar: document.getElementById('user-avatar-url').value || '/uploads/users/default.png',
         custom_restrictions: JSON.stringify({
             genres: document.getElementById('user-blocked-genres').value.split(',').map(s=>s.trim()).filter(Boolean),
             titles: document.getElementById('user-blocked-titles').value.split(',').map(s=>s.trim()).filter(Boolean)
@@ -7878,15 +8443,25 @@ async function saveUser() {
     };
     
     const method = id ? 'PUT' : 'POST';
-    const url = '/api/admin/users' + (id ? '/'+id : '');
+    const url = `${API_BASE}/admin/users` + (id ? '/'+id : '');
     
-    await fetch(url, {
-        method, headers: { 'Content-Type': 'application/json', 'x-admin-token': localStorage.getItem('adminToken') },
-        body: JSON.stringify(data)
-    });
-    
-    closeModal('user-modal');
-    loadUsers();
+    try {
+        const res = await fetch(url, {
+            method, headers: { 'Content-Type': 'application/json', 'x-admin-token': localStorage.getItem('adminToken') },
+            body: JSON.stringify(data)
+        });
+        const result = await res.json();
+        if(result.success) {
+            closeModal('user-modal');
+            loadUsers();
+            showAlert('تم الحفظ بنجاح', 'success');
+        } else {
+            showAlert(result.error || 'فشل الحفظ', 'error');
+        }
+    } catch(e) {
+        console.error('Error saving user:', e);
+        showAlert('حدث خطأ في الاتصال بالسيرفر', 'error');
+    }
 }
 
 async function deleteUser(id) {

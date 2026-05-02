@@ -17,6 +17,33 @@ const db = new sqlite3.Database(dbPath, (err) => {
     }
 });
 
+const run = (sql, params = []) => {
+    return new Promise((resolve, reject) => {
+        db.run(sql, params, function (err) {
+            if (err) reject(err);
+            else resolve({ id: this.lastID, changes: this.changes });
+        });
+    });
+};
+
+const get = (sql, params = []) => {
+    return new Promise((resolve, reject) => {
+        db.get(sql, params, (err, row) => {
+            if (err) reject(err);
+            else resolve(row);
+        });
+    });
+};
+
+const all = (sql, params = []) => {
+    return new Promise((resolve, reject) => {
+        db.all(sql, params, (err, rows) => {
+            if (err) reject(err);
+            else resolve(rows);
+        });
+    });
+};
+
 const initDatabase = () => {
     return new Promise((resolve, reject) => {
         db.serialize(() => {
@@ -47,8 +74,14 @@ const initDatabase = () => {
                 views INTEGER DEFAULT 0,
                 likes INTEGER DEFAULT 0,
                 type TEXT,
-                ageRating TEXT
+                ageRating TEXT,
+                titleAr TEXT,
+                titleEn TEXT
             )`);
+
+            // Safely alter existing tables to add new columns if they don't exist
+            db.run(`ALTER TABLE series ADD COLUMN titleAr TEXT`, (err) => {});
+            db.run(`ALTER TABLE series ADD COLUMN titleEn TEXT`, (err) => {});
 
             // Seasons Table
             db.run(`CREATE TABLE IF NOT EXISTS seasons (
@@ -89,7 +122,10 @@ const initDatabase = () => {
             // Actors Table
             db.run(`CREATE TABLE IF NOT EXISTS actors (
                 id TEXT PRIMARY KEY,
+                tmdbId TEXT,
                 name TEXT,
+                nameAr TEXT,
+                nameEn TEXT,
                 image TEXT,
                 bio TEXT,
                 nationality TEXT,
@@ -99,6 +135,11 @@ const initDatabase = () => {
                 createdAt TEXT,
                 updatedAt TEXT
             )`);
+
+            // Safely alter existing tables
+            db.run(`ALTER TABLE actors ADD COLUMN tmdbId TEXT`, (err) => {});
+            db.run(`ALTER TABLE actors ADD COLUMN nameAr TEXT`, (err) => {});
+            db.run(`ALTER TABLE actors ADD COLUMN nameEn TEXT`, (err) => {});
 
             // Admins Table
             db.run(`CREATE TABLE IF NOT EXISTS admins (
@@ -113,9 +154,11 @@ const initDatabase = () => {
             // Genres Table
             db.run(`CREATE TABLE IF NOT EXISTS genres (
                 id TEXT PRIMARY KEY,
+                tmdbId INTEGER UNIQUE,
                 name TEXT,
                 color TEXT,
-                icon TEXT
+                icon TEXT,
+                contentCount INTEGER DEFAULT 0
             )`);
 
             // Countries Table
@@ -205,6 +248,49 @@ const initDatabase = () => {
                 FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE
             )`);
 
+            // Parts Table (Fix missing table)
+            db.run(`CREATE TABLE IF NOT EXISTS parts (
+                id TEXT PRIMARY KEY,
+                parentId TEXT,
+                parentTitle TEXT,
+                parentType TEXT,
+                partNumber INTEGER,
+                title TEXT,
+                year INTEGER,
+                poster TEXT,
+                description TEXT,
+                duration TEXT,
+                videoUrl TEXT,
+                views INTEGER DEFAULT 0,
+                likes INTEGER DEFAULT 0,
+                createdAt TEXT,
+                updatedAt TEXT
+            )`);
+
+            // Collections Table
+            db.run(`CREATE TABLE IF NOT EXISTS collections (
+                id TEXT PRIMARY KEY,
+                name TEXT,
+                description TEXT,
+                poster TEXT,
+                backdrop TEXT,
+                type TEXT DEFAULT 'collection',
+                order_num INTEGER DEFAULT 0,
+                createdAt TEXT,
+                updatedAt TEXT
+            )`);
+
+            // Collection Items Table
+            db.run(`CREATE TABLE IF NOT EXISTS collection_items (
+                id TEXT PRIMARY KEY,
+                collectionId TEXT,
+                mediaId TEXT,
+                orderNum INTEGER,
+                createdAt TEXT,
+                FOREIGN KEY (collectionId) REFERENCES collections(id) ON DELETE CASCADE,
+                FOREIGN KEY (mediaId) REFERENCES series(id) ON DELETE CASCADE
+            )`);
+
             // Logs Table
             db.run(`CREATE TABLE IF NOT EXISTS logs (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -215,44 +301,14 @@ const initDatabase = () => {
                 admin TEXT
             )`);
 
-            // Seed Default Data
-            const defaultGenres = [
-                { name: 'عالي الدقة', color: '#1bd68e', icon: 'fas fa-hd' },
-                { name: 'حركة', color: '#ff4d4d', icon: 'fas fa-fist-raised' },
-                { name: 'دراما', color: '#ffcc00', icon: 'fas fa-theater-masks' },
-                { name: 'مغامرة', color: '#33ccff', icon: 'fas fa-mountain' },
-                { name: 'خيال علمي', color: '#9966ff', icon: 'fas fa-rocket' },
-                { name: 'كوميديا', color: '#ff66b2', icon: 'fas fa-laugh-beam' },
-                { name: 'خيال علمي وفانتازيا', color: '#cc66ff', icon: 'fas fa-magic' },
-                { name: 'غموض', color: '#999999', icon: 'fas fa-user-secret' },
-                { name: 'رعب', color: '#000000', icon: 'fas fa-ghost' },
-                { name: 'رومانسي', color: '#ff3366', icon: 'fas fa-heart' },
-                { name: 'جريمة', color: '#333333', icon: 'fas fa-handcuffs' },
-                { name: 'عائلي', color: '#66ff66', icon: 'fas fa-users' },
-                { name: 'رسوم متحركة', color: '#ff9933', icon: 'fas fa-palette' },
-                { name: 'تاريخ', color: '#8b4513', icon: 'fas fa-landmark' },
-                { name: 'حرب', color: '#556b2f', icon: 'fas fa-shield-alt' },
-                { name: 'وثائقي', color: '#4682b4', icon: 'fas fa-microphone' },
-                { name: 'موسيقى', color: '#da70d6', icon: 'fas fa-music' }
-            ];
-
-            defaultGenres.forEach(g => {
-                db.get('SELECT id FROM genres WHERE name = ?', [g.name], (err, row) => {
-                    if (!err && !row) {
-                        db.run('INSERT INTO genres (id, name, color, icon) VALUES (?, ?, ?, ?)',
-                            ['genre_' + uuidv4().substring(0, 8), g.name, g.color, g.icon]);
-                    }
-                });
-            });
-
             // Check if admin exists
-            db.get("SELECT * FROM users WHERE username = 'admin'", (err, row) => {
+            get("SELECT * FROM users WHERE username = 'admin'").then(row => {
                 if (!row) {
-                    db.run("INSERT INTO users (id, username, password, role, createdAt) VALUES (?, ?, ?, ?, ?)",
+                    run("INSERT INTO users (id, username, password, role, createdAt) VALUES (?, ?, ?, ?, ?)",
                         [uuidv4(), 'admin', 'admin123', 'admin', new Date().toISOString()]);
                 }
-            });
-
+            }).catch(err => console.error("Error checking/creating admin:", err));
+            
             resolve();
         });
     });
@@ -261,28 +317,7 @@ const initDatabase = () => {
 module.exports = {
     db,
     initDatabase,
-    run: (sql, params = []) => {
-        return new Promise((resolve, reject) => {
-            db.run(sql, params, function (err) {
-                if (err) reject(err);
-                else resolve({ id: this.lastID, changes: this.changes });
-            });
-        });
-    },
-    get: (sql, params = []) => {
-        return new Promise((resolve, reject) => {
-            db.get(sql, params, (err, row) => {
-                if (err) reject(err);
-                else resolve(row);
-            });
-        });
-    },
-    all: (sql, params = []) => {
-        return new Promise((resolve, reject) => {
-            db.all(sql, params, (err, rows) => {
-                if (err) reject(err);
-                else resolve(rows);
-            });
-        });
-    }
+    run,
+    get,
+    all
 };

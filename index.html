@@ -1332,9 +1332,9 @@
 
             <div class="flex flex-col gap-8">
                 <div class="flex items-center gap-4 pb-6 border-b border-white/5">
-                    <img src="/uploads/avatars/default.png" class="w-16 h-16 rounded-full border-2 border-primary">
+                    <img src="/uploads/users/default.png" class="user-avatar-display w-16 h-16 rounded-full border-2 border-primary object-cover">
                     <div>
-                        <h4 class="font-black text-white">شهاب</h4>
+                        <h4 class="user-name-display font-black text-white">الضيف</h4>
                         <p class="text-gray-500 text-sm">مشترك مميز</p>
                     </div>
                 </div>
@@ -1359,7 +1359,7 @@
                     <i class="fa-regular fa-circle-question w-6"></i>
                     <span class="font-bold">مساعدة</span>
                 </button>
-                <button
+                <button onclick="logout()"
                     class="flex items-center gap-4 text-red-500 hover:text-red-400 transition-colors text-right mt-10 pt-6 border-t border-white/5">
                     <i class="fa-solid fa-arrow-right-from-bracket w-6"></i>
                     <span class="font-bold">تسجيل الخروج</span>
@@ -1407,8 +1407,9 @@
         // Global check on load
         window.addEventListener('DOMContentLoaded', () => {
             if (!loadSession()) {
-                document.getElementById('login-modal').style.display = 'flex';
+                State.view = 'profileSelection';
             }
+            Router.render();
         });
 
         // Intercept API fetch calls
@@ -1416,9 +1417,9 @@
         window.fetch = function() {
             let [resource, config] = arguments;
             if (typeof resource === 'string' && resource.startsWith(API_BASE)) {
-                if (currentSession && currentSession.userId) {
+                if (currentSession && currentSession.id) {
                     const separator = resource.includes('?') ? '&' : '?';
-                    resource += separator + 'userId=' + currentSession.userId;
+                    resource += separator + 'userId=' + currentSession.id;
                 }
             }
             return originalFetch(resource, config);
@@ -1455,6 +1456,11 @@
         function clearSession() {
             currentSession = null;
             localStorage.removeItem('session');
+        }
+
+        function logout() {
+            clearSession();
+            window.location.reload();
         }
 
         function loadSession() {
@@ -1503,20 +1509,57 @@
                 try {
                     let html = '';
                     switch (State.view) {
-                        case 'home': html = await Views.home(); break;
+                        case 'home': 
+                            document.querySelector('aside')?.classList.remove('hidden');
+                            document.querySelector('nav')?.classList.remove('hidden');
+                            html = await Views.home(); 
+                            break;
+                        case 'profileSelection': 
+                            document.querySelector('aside')?.classList.add('hidden');
+                            document.querySelector('nav')?.classList.add('hidden');
+                            html = await Views.profileSelection(); 
+                            break;
                         case 'details':
+                            document.querySelector('aside')?.classList.remove('hidden');
+                            document.querySelector('nav')?.classList.remove('hidden');
                             html = await Views.details(State.params.id);
                             root.innerHTML = `<div class="page-fade">${html}</div>`;
                             Views.initSeasonMarker();
-                            return; // الخروج مبكراً لمنع التكرار أدناه
-                        case 'actor': html = await Views.actor(State.params.id); break;
-                        case 'player': html = await Views.player(State.params.id, State.params.type); break;
-                        case 'search': html = Views.search(); break;
-                        case 'movies': html = await Views.grid('movies'); break;
-                        case 'series': html = await Views.grid('series'); break;
+                            return; 
+                        case 'actor': 
+                            document.querySelector('aside')?.classList.remove('hidden');
+                            document.querySelector('nav')?.classList.remove('hidden');
+                            html = await Views.actor(State.params.id); 
+                            break;
+                        case 'player': 
+                            document.querySelector('aside')?.classList.add('hidden');
+                            document.querySelector('nav')?.classList.add('hidden');
+                            html = await Views.player(State.params.id, State.params.type); 
+                            break;
+                        case 'search': 
+                            document.querySelector('aside')?.classList.remove('hidden');
+                            document.querySelector('nav')?.classList.remove('hidden');
+                            html = Views.search(); 
+                            break;
+                        case 'movies': 
+                            document.querySelector('aside')?.classList.remove('hidden');
+                            document.querySelector('nav')?.classList.remove('hidden');
+                            html = await Views.grid('movies'); 
+                            break;
+                        case 'series': 
+                            document.querySelector('aside')?.classList.remove('hidden');
+                            document.querySelector('nav')?.classList.remove('hidden');
+                            html = await Views.grid('series'); 
+                            break;
                     }
                     root.innerHTML = `<div class="page-fade">${html}</div>`;
                     if (State.view === 'player') PlayerEngine.init();
+                    
+                    // Update UI elements
+                    if (currentSession) {
+                        document.querySelectorAll('.user-name-display').forEach(el => el.innerText = currentSession.name);
+                        document.querySelectorAll('.user-avatar-display').forEach(el => el.src = currentSession.avatar || '/uploads/users/default.png');
+                    }
                 } catch (e) {
                     console.error(e);
                     root.innerHTML = `<div class="h-screen flex flex-col items-center justify-center text-center px-6"><h2 class="text-2xl font-bold mb-4 text-red-500">حدث خطأ</h2><button onclick="Router.go('home')" class="bg-primary text-black px-8 py-3 rounded-xl font-bold">العودة للرئيسية</button></div>`;
@@ -1550,6 +1593,45 @@
                         <div class="flex justify-between items-center px-1 mt-1 text-[10px] text-gray-500 font-bold">
                             <span>${item.year}</span>
                             <span class="bg-white/5 px-1.5 rounded uppercase">${item.isMovie ? 'فيلم' : 'مسلسل'}</span>
+                        </div>
+                    </div>
+                `;
+            },
+            collectionCard(col) {
+                if (!col || !col.items || col.items.length === 0) return '';
+                const posters = col.items.map(i => i.poster).filter(Boolean);
+                const backdrops = col.items.map(i => i.backdrop).filter(Boolean);
+                if (posters.length === 0) posters.push('/uploads/posters/default.jpg');
+                if (backdrops.length === 0) backdrops.push(posters[0]);
+                
+                return `
+                    <div onclick="Router.go('details', {id: '${col.items[0].id}'})" class="group cursor-pointer collection-card" 
+                         data-posters='${JSON.stringify(posters)}' 
+                         data-backdrops='${JSON.stringify(backdrops)}'>
+                        <div class="relative aspect-[2/3] rounded-2xl overflow-hidden bg-surface border border-white/5 transition-all duration-500 card-glow group-hover:-translate-y-2">
+                            
+                            <!-- Backdrop Slideshow Layer (Subtle) -->
+                            <div class="absolute inset-0 z-0 opacity-40 blur-sm overflow-hidden backdrop-slideshow">
+                                <img src="${backdrops[0]}" class="slideshow-backdrop-img w-full h-full object-cover transition-opacity duration-1000">
+                                <img src="${backdrops[1] || backdrops[0]}" class="slideshow-backdrop-img absolute inset-0 w-full h-full object-cover opacity-0 transition-opacity duration-1000">
+                            </div>
+
+                            <div class="collection-slideshow h-full w-full relative z-10">
+                                <img src="${posters[0]}" class="slideshow-img w-full h-full object-cover transition-opacity duration-700" loading="lazy">
+                                <img src="${posters[1] || posters[0]}" class="slideshow-img absolute inset-0 w-full h-full object-cover opacity-0 transition-opacity duration-700" loading="lazy">
+                            </div>
+                            
+                            <div class="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent opacity-60 group-hover:opacity-80 transition-opacity"></div>
+                            
+                            <div class="absolute inset-0 flex flex-col justify-end p-4 text-right">
+                                <div class="bg-primary text-black px-2 py-0.5 rounded-md text-[9px] font-black w-fit mb-1 mr-auto ml-0">مجموعة</div>
+                                <h3 class="text-white font-black text-sm leading-tight">${col.name}</h3>
+                                <div class="text-[10px] text-primary font-bold mt-1">${col.items.length} أجزاء</div>
+                            </div>
+
+                            <div class="absolute top-2 right-2 bg-black/60 backdrop-blur px-2 py-0.5 rounded text-[10px] font-black border border-white/10">
+                                <i class="fa-solid fa-layer-group text-primary mr-1"></i>
+                            </div>
                         </div>
                     </div>
                 `;
@@ -1766,7 +1848,10 @@
             
                     </div>`;
 
-                setTimeout(() => this.initHeroSlider(promos.length), 200);
+                setTimeout(() => {
+                    this.initHeroSlider(promos.length);
+                    this.initCollectionSlideshow();
+                }, 200);
 
                 return `
                     <div class="space-y-16">
@@ -1783,6 +1868,18 @@
                         </section>` : ''}
 
                         <div class="px-6 md:px-16 space-y-20 ${promos.length > 0 ? '-mt-20' : 'mt-10'} relative z-20 pb-20 container-custom">
+                            
+                            ${data.collections && data.collections.length > 0 ? `
+                            <section>
+                                <div class="flex flex-row-reverse items-center justify-between mb-10 text-right">
+                                    <h2 class="text-3xl font-black flex flex-row-reverse items-center gap-4">سلاسل أفلام ومجموعات <span class="w-1.5 h-8 bg-primary rounded-full shadow-[0_0_15px_#1bd68e]"></span></h2>
+                                </div>
+                                <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-6">
+                                    ${data.collections.map(c => UI.collectionCard(c)).join('')}
+                                </div>
+                            </section>
+                            ` : ''}
+
                             <section>
                                 <div class="flex flex-row-reverse items-center justify-between mb-10 text-right">
                                     <button onclick="Router.go('movies')" class="text-primary text-sm font-black hover:underline">عرض الكل</button>
@@ -1845,6 +1942,65 @@
 
                 this.startAutoPlay();
                 this.updateDots(0);
+            },
+
+            initCollectionSlideshow() {
+                const cards = document.querySelectorAll('.collection-card');
+                cards.forEach(card => {
+                    const posters = JSON.parse(card.dataset.posters || '[]');
+                    if (posters.length <= 1) return;
+                    
+                    const imgContainer = card.querySelector('.collection-slideshow');
+                    const imgs = imgContainer.querySelectorAll('.slideshow-img');
+                    
+                    const backdropContainer = card.querySelector('.backdrop-slideshow');
+                    const backdropImgs = backdropContainer.querySelectorAll('.slideshow-backdrop-img');
+                    
+                    let currentIdx = 0;
+                    let interval = null;
+                    
+                    card.addEventListener('mouseenter', () => {
+                        interval = setInterval(() => {
+                            const nextIdx = (currentIdx + 1) % posters.length;
+                            
+                            // Update Posters
+                            imgs[1].src = posters[nextIdx];
+                            imgs[1].style.opacity = '1';
+                            
+                            // Update Backdrops
+                            const backdrops = JSON.parse(card.dataset.backdrops || '[]');
+                            if (backdrops.length > 0) {
+                                backdropImgs[1].src = backdrops[nextIdx] || posters[nextIdx];
+                                backdropImgs[1].style.opacity = '1';
+                            }
+                            
+                            setTimeout(() => {
+                                imgs[0].src = posters[nextIdx];
+                                imgs[1].style.opacity = '0';
+                                
+                                if (backdrops.length > 0) {
+                                    backdropImgs[0].src = backdrops[nextIdx] || posters[nextIdx];
+                                    backdropImgs[1].style.opacity = '0';
+                                }
+                                
+                                currentIdx = nextIdx;
+                            }, 700); 
+                        }, 3000);
+                    });
+                    
+                    card.addEventListener('mouseleave', () => {
+                        clearInterval(interval);
+                        // Reset
+                        imgs[0].src = posters[0];
+                        imgs[1].style.opacity = '0';
+                        
+                        const backdrops = JSON.parse(card.dataset.backdrops || '[]');
+                        backdropImgs[0].src = backdrops[0] || posters[0];
+                        backdropImgs[1].style.opacity = '0';
+                        
+                        currentIdx = 0;
+                    });
+                });
             },
 
             startAutoPlay() {
@@ -2366,35 +2522,45 @@
 
 
             async profileSelection() {
-                if (!currentSession) {
-                    Router.go('login');
-                    return;
-                }
                 try {
-                    const res = await fetch(`${API_BASE}/users/${currentSession.userId}/profiles`);
+                    const res = await fetch(`${API_BASE}/profiles`);
                     const profiles = await res.json();
+                    
+                    document.querySelector('aside')?.classList.add('hidden');
+                    document.querySelector('nav')?.classList.add('hidden');
+                    
                     return `
-                        <div class="min-h-screen flex flex-col items-center justify-center px-4">
-                            <h1 class="text-3xl font-black mb-2">من يشاهد الآن؟</h1>
-                            <p class="text-gray-400 mb-12">اختر ملفك الشخصي للمتابعة</p>
-                            <div class="flex flex-wrap justify-center gap-8">
+                        <div class="min-h-screen w-full flex flex-col items-center justify-center bg-obsidian animate-in fade-in duration-700">
+                            <div class="text-center mb-16">
+                                <h1 class="text-4xl md:text-5xl font-black mb-4">من يشاهد الآن؟</h1>
+                                <p class="text-gray-500 text-lg">اختر بروفايلك الشخصي للمتابعة</p>
+                            </div>
+                            <div class="flex flex-wrap justify-center gap-8 md:gap-12 max-w-6xl px-6">
                                 ${profiles.map(p => `
-                                    <div onclick="selectProfile('${p.id}')" class="text-center cursor-pointer group">
-                                        <div class="w-32 h-32 rounded-2xl overflow-hidden border-2 border-transparent group-hover:border-primary transition-all">
-                                            <img src="${p.avatar || '/uploads/avatars/default.png'}" class="w-full h-full object-cover">
+                                    <div onclick="selectProfile('${p.id}')" class="group cursor-pointer flex flex-col items-center">
+                                        <div class="w-32 h-32 md:w-40 md:h-40 rounded-[2rem] overflow-hidden border-4 border-transparent group-hover:border-primary group-hover:scale-110 transition-all duration-500 shadow-2xl relative">
+                                            <img src="${p.avatar || '/uploads/users/default.png'}" class="w-full h-full object-cover">
+                                            <div class="absolute inset-0 bg-black/20 group-hover:bg-transparent transition-colors"></div>
                                         </div>
-                                        <p class="mt-3 font-bold group-hover:text-primary transition-colors">${p.name}</p>
+                                        <span class="mt-5 text-xl font-black text-gray-400 group-hover:text-white transition-colors">${p.name}</span>
                                     </div>
                                 `).join('')}
+                                
+                                <div onclick="document.getElementById('login-modal').style.display='flex'" class="group cursor-pointer flex flex-col items-center">
+                                    <div class="w-32 h-32 md:w-40 md:h-40 rounded-[2rem] overflow-hidden border-4 border-dashed border-white/10 group-hover:border-primary group-hover:scale-110 transition-all duration-500 flex items-center justify-center bg-white/5">
+                                        <i class="fas fa-lock text-3xl text-gray-600 group-hover:text-primary"></i>
+                                    </div>
+                                    <span class="mt-5 text-xl font-black text-gray-500 group-hover:text-white">الإدارة</span>
+                                </div>
                             </div>
-                            <button onclick="Router.go('addProfile')" class="mt-12 text-primary hover:underline">إضافة ملف شخصي جديد</button>
-                            <button onclick="logout()" class="mt-4 text-gray-500 text-sm hover:text-white">تسجيل خروج</button>
                         </div>
                     `;
                 } catch(e) {
-                    return `<div class="min-h-screen flex items-center justify-center">حدث خطأ</div>`;
+                    console.error(e);
+                    return `<div class="min-h-screen flex items-center justify-center text-red-500">حدث خطأ في تحميل البروفايلات</div>`;
                 }
             },
+
 
 
             search() {

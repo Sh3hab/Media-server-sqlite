@@ -91,56 +91,88 @@ app.post('/api/tmdb/import', authenticateAdmin, async (req, res) => {
         if (!type || !id) {
             return res.status(400).json({ error: 'رابط TMDB غير صالح' });
         }
-        // Fetch main data
-        const tmdbRes = await fetch(`https://api.themoviedb.org/3/${type}/${id}?api_key=${TMDB_API_KEY}&language=ar&append_to_response=credits,content_ratings,release_dates,keywords`);
-        const data = await tmdbRes.json();
-        if (data.status_code === 34) {
+        // Fetch main data (Arabic and English)
+        const [tmdbResAr, tmdbResEn] = await Promise.all([
+            fetch(`https://api.themoviedb.org/3/${type}/${id}?api_key=${TMDB_API_KEY}&language=ar&append_to_response=credits,content_ratings,release_dates,keywords`),
+            fetch(`https://api.themoviedb.org/3/${type}/${id}?api_key=${TMDB_API_KEY}&language=en-US&append_to_response=credits`)
+        ]);
+
+        const dataAr = await tmdbResAr.json();
+        const dataEn = await tmdbResEn.json();
+
+        if (dataAr.status_code === 34) {
             return res.status(404).json({ error: 'المحتوى غير موجود في TMDB' });
         }
+
         // Return full data for preview
         const responseData = {
-            id: data.id,
-            title: data.title || data.name,
-            year: (data.release_date || data.first_air_date || '').split('-')[0],
-            poster: data.poster_path ? `https://image.tmdb.org/t/p/w500${data.poster_path}` : '',
-            backdrop: data.backdrop_path ? `https://image.tmdb.org/t/p/original${data.backdrop_path}` : '',
-            rating: data.vote_average,
-            description: data.overview,
-            genres: (data.genres || []).map(g => g.name),
-            countries: (data.production_countries || []).map(c => c.name),
+            id: dataAr.id,
+            titleAr: dataAr.title || dataAr.name || '',
+            titleEn: dataEn.title || dataEn.name || '',
+            year: (dataAr.release_date || dataAr.first_air_date || '').split('-')[0],
+            posterAr: dataAr.poster_path ? `https://image.tmdb.org/t/p/w500${dataAr.poster_path}` : '',
+            posterEn: dataEn.poster_path ? `https://image.tmdb.org/t/p/w500${dataEn.poster_path}` : '',
+            backdrop: dataAr.backdrop_path ? `https://image.tmdb.org/t/p/original${dataAr.backdrop_path}` : '',
+            rating: dataAr.vote_average,
+            descriptionAr: dataAr.overview || '',
+            descriptionEn: dataEn.overview || '',
+            genres: (dataAr.genres || []).map(g => ({ id: g.id, name: g.name })),
+            countries: (dataAr.production_countries || []).map(c => c.name),
             isMovie: type === 'movie',
-            duration: data.runtime ? `${data.runtime} دقيقة` : (data.episode_run_time ? `${data.episode_run_time[0]} دقيقة` : ''),
-            language: data.original_language,
-            director: (data.credits?.crew || []).find(c => c.job === 'Director')?.name || '',
-            actorRoles: (data.credits?.cast || []).slice(0, 15).map(member => ({
-                actorId: member.id,
-                actorName: member.name,
-                roleName: member.character,
-                image: member.profile_path ? `https://image.tmdb.org/t/p/w500${member.profile_path}` : ''
-            }))
+            duration: dataAr.runtime ? `${dataAr.runtime} دقيقة` : (dataAr.episode_run_time ? `${dataAr.episode_run_time[0]} دقيقة` : ''),
+            language: dataAr.original_language,
+            director: (dataAr.credits?.crew || []).find(c => c.job === 'Director')?.name || '',
+            actorRoles: (dataAr.credits?.cast || []).slice(0, 15).map((member, idx) => {
+                const enMember = (dataEn.credits?.cast || []).find(c => c.id === member.id) || {};
+                return {
+                    actorId: member.id,
+                    actorNameAr: member.name || '',
+                    actorNameEn: enMember.name || member.name || '',
+                    actorName: member.name || enMember.name || '', // Default display name
+                    roleName: member.character || enMember.character || '',
+                    image: member.profile_path ? `https://image.tmdb.org/t/p/w500${member.profile_path}` : ''
+                };
+            })
         };
+
         if (type === 'tv') {
             const seasons = [];
-            for (const s of (data.seasons || [])) {
-                if (s.season_number === 0) continue; 
-                
-                const seasonRes = await fetch(`https://api.themoviedb.org/3/tv/${id}/season/${s.season_number}?api_key=${TMDB_API_KEY}&language=ar`);
-                const sData = await seasonRes.json();
-                
+            for (const s of (dataAr.seasons || [])) {
+                if (s.season_number === 0) continue;
+
+                const [seasonResAr, seasonResEn] = await Promise.all([
+                    fetch(`https://api.themoviedb.org/3/tv/${id}/season/${s.season_number}?api_key=${TMDB_API_KEY}&language=ar`),
+                    fetch(`https://api.themoviedb.org/3/tv/${id}/season/${s.season_number}?api_key=${TMDB_API_KEY}&language=en-US`)
+                ]);
+
+                const sDataAr = await seasonResAr.json();
+                const sDataEn = await seasonResEn.json();
+
+                // Try to find the corresponding season in the English main data (for poster/overview)
+                const sEnMain = (dataEn.seasons || []).find(se => se.season_number === s.season_number) || {};
+
                 seasons.push({
                     seasonNumber: s.season_number,
-                    title: s.name,
-                    description: s.overview,
-                    poster: s.poster_path ? `https://image.tmdb.org/t/p/w500${s.poster_path}` : responseData.poster,
-                    backdrop: data.backdrop_path ? `https://image.tmdb.org/t/p/original${data.backdrop_path}` : '',
+                    titleAr: s.name || '',
+                    titleEn: sEnMain.name || '',
+                    descriptionAr: s.overview || '',
+                    descriptionEn: sEnMain.overview || '',
+                    posterAr: s.poster_path ? `https://image.tmdb.org/t/p/w500${s.poster_path}` : responseData.posterAr,
+                    posterEn: sEnMain.poster_path ? `https://image.tmdb.org/t/p/w500${sEnMain.poster_path}` : responseData.posterEn,
+                    backdrop: dataAr.backdrop_path ? `https://image.tmdb.org/t/p/original${dataAr.backdrop_path}` : '',
                     year: (s.air_date || '').split('-')[0] || responseData.year,
-                    episodes: (sData.episodes || []).map(e => ({
-                        episodeNumber: e.episode_number,
-                        title: e.name,
-                        description: e.overview,
-                        image: e.still_path ? `https://image.tmdb.org/t/p/w500${e.still_path}` : '',
-                        duration: responseData.duration
-                    }))
+                    episodes: (sDataAr.episodes || []).map((e, index) => {
+                        const eEn = sDataEn.episodes ? sDataEn.episodes[index] : {};
+                        return {
+                            episodeNumber: e.episode_number,
+                            titleAr: e.name || '',
+                            titleEn: eEn.name || '',
+                            descriptionAr: e.overview || '',
+                            descriptionEn: eEn.overview || '',
+                            image: e.still_path ? `https://image.tmdb.org/t/p/w500${e.still_path}` : '',
+                            duration: e.runtime ? `${e.runtime} دقيقة` : responseData.duration
+                        };
+                    })
                 });
             }
             responseData.seasons = seasons;
@@ -179,13 +211,7 @@ app.get('/api/tmdb/search', authenticateAdmin, async (req, res) => {
         res.status(500).json({ error: 'خطأ في بحث TMDB: ' + error.message });
     }
 });
-app.post('/api/admin/users', authenticateAdmin, (req, res) => {
-    const { username, password, role } = req.body;
-    db.run("INSERT INTO users (username, password, role) VALUES (?, ?, ?)", [username, password, role || 'user'], function(err) {
-        if (err) return res.status(400).json({ error: 'Username already exists' });
-        res.json({ success: true, id: this.lastID });
-    });
-});
+
 const logRequest = (req, res, next) => {
     const logData = [
         req.originalUrl,
@@ -198,6 +224,37 @@ const logRequest = (req, res, next) => {
         .catch(err => console.error("Error writing logs:", err));
     next();
 };
+
+async function resolveGenreNames(seriesData) {
+    if (!seriesData) return seriesData;
+    const isArray = Array.isArray(seriesData);
+    const data = isArray ? seriesData : [seriesData];
+
+    try {
+        const allGenres = await db.all('SELECT id, name FROM genres');
+        const genreMap = {};
+        allGenres.forEach(g => genreMap[g.id] = g.name);
+
+        const mappedData = data.map(s => {
+            let genreIds = [];
+            try {
+                genreIds = JSON.parse(s.genres || '[]');
+            } catch (e) {
+                genreIds = s.genres ? (Array.isArray(s.genres) ? s.genres : [s.genres]) : [];
+            }
+
+            return {
+                ...s,
+                genres: genreIds.map(id => genreMap[id] || id)
+            };
+        });
+
+        return isArray ? mappedData : mappedData[0];
+    } catch (error) {
+        console.error('Error resolving genre names:', error);
+        return seriesData;
+    }
+}
 app.use(logRequest);
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
@@ -231,10 +288,6 @@ const upload = multer({
     }
 });
 
-app.get('/api/genres', (req, res) => {
-    const genres = ['Action', 'Comedy', 'Drama', 'Horror', 'Sci-Fi', 'Romance', 'Animation', 'Documentary'];
-    res.json(genres);
-});
 
 app.get('/api/admin/content-titles', authenticateAdmin, (req, res) => {
     // جلب العناوين من قاعدة البيانات (أو إرجاع قائمة افتراضية حالياً)
@@ -286,7 +339,7 @@ app.post('/api/upload', authenticateAdmin, upload.single('file'), (req, res) => 
         if (type === 'poster') folderName = 'posters';
         else if (type === 'backdrop') folderName = 'posters/backdrops';
         else if (['actor', 'episode', 'movie', 'flag'].includes(type)) folderName = type + 's';
-        
+
         const fileUrl = `/uploads/${folderName}/${req.file.filename}`;
         res.json({
             success: true,
@@ -308,7 +361,7 @@ app.get('/api/admin/stats', authenticateAdmin, async (req, res) => {
         const userRow = await db.get("SELECT COUNT(*) as count FROM users");
         const movieRow = await db.get("SELECT COUNT(*) as count FROM series WHERE isMovie = 1");
         const seriesRow = await db.get("SELECT COUNT(*) as count FROM series WHERE isMovie = 0");
-        
+
         res.json({
             success: true,
             users: userRow ? userRow.count : 0,
@@ -338,7 +391,8 @@ app.get('/api/series', async (req, res) => {
             totalEpisodes: episodes.filter(ep => ep.seriesId === s.id).length
         }));
         enhancedSeries.sort((a, b) => a.order_num - b.order_num);
-        const finalSeries = await filterContentForUser(enhancedSeries, req.query.userId);
+        const resolvedSeries = await resolveGenreNames(enhancedSeries);
+        const finalSeries = await filterContentForUser(resolvedSeries, req.query.userId);
         res.json(finalSeries);
     } catch (error) {
         res.status(500).json({ error: 'خطأ في قراءة البيانات' });
@@ -358,7 +412,8 @@ app.get('/api/movies', async (req, res) => {
             isMovie: true
         }));
         enhancedMovies.sort((a, b) => a.order_num - b.order_num);
-        const finalMovies = await filterContentForUser(enhancedMovies, req.query.userId);
+        const resolvedMovies = await resolveGenreNames(enhancedMovies);
+        const finalMovies = await filterContentForUser(resolvedMovies, req.query.userId);
         res.json(finalMovies);
     } catch (error) {
         res.status(500).json({ error: 'خطأ في قراءة الأفلام' });
@@ -395,7 +450,7 @@ app.get('/api/series/:id', async (req, res) => {
         const actorIds = JSON.parse(series.actors || '[]');
         const actors = await db.all(`SELECT * FROM actors WHERE id IN (${actorIds.map(() => '?').join(',') || 'NULL'})`, actorIds);
         const actorRoles = JSON.parse(series.actorRoles || '[]');
-        res.json({
+        const fullSeries = {
             ...series,
             tags: JSON.parse(series.tags || '[]'),
             genres: JSON.parse(series.genres || '[]'),
@@ -412,7 +467,9 @@ app.get('/api/series/:id', async (req, res) => {
             episodes: episodes.map(ep => ({ ...ep, isFree: !!ep.isFree })),
             totalEpisodes: episodes.length,
             totalSeasons: seasons.length
-        });
+        };
+        const resolvedSeries = await resolveGenreNames(fullSeries);
+        res.json(resolvedSeries);
     } catch (error) {
         res.status(500).json({ error: 'خطأ في قراءة البيانات: ' + error.message });
     }
@@ -420,14 +477,173 @@ app.get('/api/series/:id', async (req, res) => {
 app.post('/api/series', authenticateAdmin, async (req, res) => {
     try {
         const {
-            title, year, poster, backdrop, rating, order, promoted, description,
+            title, titleAr, titleEn, year, poster, backdrop, rating, order, promoted, description,
             tags, genres, countries, actors, actorRoles, isMovie, duration, director, language,
             videoUrl, subtitleUrl, ageRating
         } = req.body;
+        let parsedActorRoles = [];
+        try {
+            parsedActorRoles = Array.isArray(actorRoles) ? actorRoles : (actorRoles ? JSON.parse(actorRoles) : []);
+        } catch (e) { }
+
+        let parsedActors = Array.isArray(actors) ? actors : (actors ? actors.split(',').map(a => a.trim()) : []);
+        let finalActors = [];
+        let finalActorRoles = [];
+
+        for (const role of parsedActorRoles) {
+            if (role.image && role.image.startsWith('http')) {
+                // TMDB Import: Check if actor exists by TMDB ID first, then by names
+                let actor = null;
+                if (role.actorId) {
+                    actor = await db.get('SELECT * FROM actors WHERE tmdbId = ?', [role.actorId]);
+                }
+                if (!actor) {
+                    const searchName = role.actorName || role.actorNameAr || role.actorNameEn;
+                    actor = await db.get('SELECT * FROM actors WHERE name = ? OR nameAr = ? OR nameEn = ?',
+                        [searchName, role.actorNameAr, role.actorNameEn]);
+                }
+
+                let finalActorId;
+                let localImage = role.image;
+
+                if (!actor) {
+                    // Fetch full details if it's a new actor from TMDB
+                    let bio = '';
+                    let birthDate = '';
+                    let nationality = '';
+
+                    if (role.actorId) {
+                        try {
+                            const personRes = await fetch(`https://api.themoviedb.org/3/person/${role.actorId}?api_key=${TMDB_API_KEY}&language=ar`);
+                            const personData = await personRes.json();
+                            if (personData && personData.id) {
+                                bio = personData.biography || '';
+                                birthDate = personData.birthday || '';
+                                nationality = personData.place_of_birth || '';
+                            }
+                        } catch (err) {
+                            console.error('Error fetching actor details:', err);
+                        }
+                    }
+
+                    finalActorId = uuidv4();
+                    localImage = await downloadImage(role.image, 'uploads/actors');
+                    await db.run('INSERT INTO actors (id, tmdbId, name, nameAr, nameEn, image, bio, nationality, birthDate, movies, series, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                        [finalActorId, role.actorId, role.actorName || role.actorNameAr, role.actorNameAr, role.actorNameEn, localImage, bio, nationality, birthDate, '[]', '[]', new Date().toISOString(), new Date().toISOString()]
+                    );
+                } else {
+                    finalActorId = actor.id;
+                    localImage = actor.image;
+
+                    // If actor exists but missing details, update them
+                    const updates = [];
+                    const params = [];
+                    if (!actor.tmdbId && role.actorId) { updates.push('tmdbId = ?'); params.push(role.actorId); }
+                    if (!actor.nameAr && role.actorNameAr) { updates.push('nameAr = ?'); params.push(role.actorNameAr); }
+                    if (!actor.nameEn && role.actorNameEn) { updates.push('nameEn = ?'); params.push(role.actorNameEn); }
+
+                    if (updates.length > 0) {
+                        params.push(actor.id);
+                        await db.run(`UPDATE actors SET ${updates.join(', ')} WHERE id = ?`, params);
+                    }
+                }
+
+                if (!finalActors.includes(finalActorId)) finalActors.push(finalActorId);
+                finalActorRoles.push({
+                    actorId: finalActorId,
+                    actorName: role.actorName,
+                    characterName: role.roleName || '',
+                    role: 'ممثل',
+                    image: localImage
+                });
+            } else {
+                // Existing actor or manual entry
+                if (!finalActors.includes(role.actorId)) finalActors.push(role.actorId);
+                finalActorRoles.push(role);
+            }
+        }
+
+        // Add any remaining actors from the parsedActors list
+        for (const aId of parsedActors) {
+            if (!finalActors.includes(aId) && aId !== '') finalActors.push(aId);
+        }
+
         const id = 'series_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+        const isMovieVal = (isMovie === true || isMovie === 'true' || isMovie === 1);
+
+        // Update actors' filmography
+        for (const role of finalActorRoles) {
+            const actorId = role.actorId;
+            const actorRecord = await db.get('SELECT * FROM actors WHERE id = ?', [actorId]);
+            if (actorRecord) {
+                let moviesList = [];
+                let seriesList = [];
+                try { moviesList = JSON.parse(actorRecord.movies || '[]'); } catch (e) { }
+                try { seriesList = JSON.parse(actorRecord.series || '[]'); } catch (e) { }
+
+                const entry = { id: id, title: title.trim(), role: role.characterName || 'ممثل' };
+
+                if (isMovieVal) {
+                    if (!moviesList.find(m => m.id === id)) {
+                        moviesList.push(entry);
+                        await db.run('UPDATE actors SET movies = ?, updatedAt = ? WHERE id = ?',
+                            [JSON.stringify(moviesList), new Date().toISOString(), actorId]);
+                    }
+                } else {
+                    if (!seriesList.find(s => s.id === id)) {
+                        seriesList.push(entry);
+                        await db.run('UPDATE actors SET series = ?, updatedAt = ? WHERE id = ?',
+                            [JSON.stringify(seriesList), new Date().toISOString(), actorId]);
+                    }
+                }
+            }
+        }
+
+        // ---------- Handle Genres (Smart Integration) ----------
+        let incomingGenres = [];
+        if (Array.isArray(genres)) {
+            incomingGenres = genres;
+        } else if (typeof genres === 'string' && genres.trim()) {
+            incomingGenres = genres.split(',').map(g => g.trim()).filter(Boolean);
+        }
+        const finalGenreIds = [];
+
+        for (const g of incomingGenres) {
+            let genreName = typeof g === 'string' ? g : g.name;
+            let tmdbId = typeof g === 'object' ? g.id : null;
+
+            if (tmdbId) {
+                // Check by TMDB ID as requested
+                let existingGenre = await db.get('SELECT id FROM genres WHERE tmdbId = ?', [tmdbId]);
+                if (existingGenre) {
+                    finalGenreIds.push(existingGenre.id);
+                } else {
+                    // Create new genre with this TMDB ID
+                    const newId = 'genre_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
+                    await db.run('INSERT INTO genres (id, tmdbId, name, color, icon) VALUES (?, ?, ?, ?, ?)',
+                        [newId, tmdbId, genreName, '#1bd68e', 'fa-tag']);
+                    finalGenreIds.push(newId);
+                }
+            } else if (genreName) {
+                // Fallback for manual entry or names-only list
+                let existingGenre = await db.get('SELECT id FROM genres WHERE name = ?', [genreName]);
+                if (existingGenre) {
+                    finalGenreIds.push(existingGenre.id);
+                } else {
+                    const newId = 'genre_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
+                    await db.run('INSERT INTO genres (id, name, color, icon) VALUES (?, ?, ?, ?)',
+                        [newId, genreName, '#1bd68e', 'fa-tag']);
+                    finalGenreIds.push(newId);
+                }
+            }
+        }
+
+
         const newSeries = {
             id: id,
             title: title.trim(),
+            titleAr: titleAr || '',
+            titleEn: titleEn || '',
             year: parseInt(year) || new Date().getFullYear(),
             poster: await downloadImage(poster, 'uploads/posters'),
             backdrop: await downloadImage(backdrop, 'uploads/posters/backdrops'),
@@ -438,10 +654,10 @@ app.post('/api/series', authenticateAdmin, async (req, res) => {
             videoUrl: videoUrl || '',
             subtitleUrl: subtitleUrl || '',
             tags: JSON.stringify(Array.isArray(tags) ? tags : (tags ? tags.split(',').map(t => t.trim()) : [])),
-            genres: JSON.stringify(Array.isArray(genres) ? genres : (genres ? genres.split(',').map(g => g.trim()) : [])),
+            genres: JSON.stringify(finalGenreIds), // Store IDs
             countries: JSON.stringify(Array.isArray(countries) ? countries : (countries ? countries.split(',').map(c => c.trim()) : [])),
-            actors: JSON.stringify(Array.isArray(actors) ? actors : (actors ? actors.split(',').map(a => a.trim()) : [])),
-            actorRoles: JSON.stringify(Array.isArray(actorRoles) ? actorRoles : []),
+            actors: JSON.stringify(finalActorRoles.map(r => ({ actorId: r.actorId, actorName: r.actorName }))),
+            actorRoles: JSON.stringify(finalActorRoles),
             isMovie: (isMovie === true || isMovie === 'true') ? 1 : 0,
             duration: duration || '',
             director: director || '',
@@ -455,8 +671,8 @@ app.post('/api/series', authenticateAdmin, async (req, res) => {
         };
         const keys = Object.keys(newSeries);
         const values = Object.values(newSeries);
-        const sql = `INSERT INTO series (${keys.join(',')}) VALUES (${keys.map(() => '?').join(',')})`;
-        await db.run(sql, values);
+        const sqlSeries = `INSERT INTO series (${keys.join(',')}) VALUES (${keys.map(() => '?').join(',')})`;
+        await db.run(sqlSeries, values);
         res.json({ success: true, message: 'تم الإضافة بنجاح', series: newSeries });
     } catch (error) {
         res.status(500).json({ error: 'خطأ في الحفظ: ' + error.message });
@@ -485,7 +701,7 @@ app.put('/api/series/:id', authenticateAdmin, async (req, res) => {
             }
         });
         // Filter out any properties that are not columns in the series table
-        const allowedKeys = ['title', 'year', 'poster', 'backdrop', 'rating', 'order_num', 'promoted', 'description', 'videoUrl', 'subtitleUrl', 'tags', 'genres', 'countries', 'actors', 'actorRoles', 'isMovie', 'duration', 'director', 'language', 'views', 'likes', 'type', 'updatedAt', 'ageRating'];
+        const allowedKeys = ['title', 'titleAr', 'titleEn', 'year', 'poster', 'backdrop', 'rating', 'order_num', 'promoted', 'description', 'videoUrl', 'subtitleUrl', 'tags', 'genres', 'countries', 'actors', 'actorRoles', 'isMovie', 'duration', 'director', 'language', 'views', 'likes', 'type', 'updatedAt', 'ageRating'];
         const validUpdates = {};
         for (const key of allowedKeys) {
             if (updates[key] !== undefined) {
@@ -709,7 +925,8 @@ app.get('/api/actors', async (req, res) => {
 app.get('/api/actors/search', async (req, res) => {
     try {
         const query = req.query.q?.toLowerCase() || '';
-        const results = await db.all('SELECT * FROM actors WHERE name LIKE ? OR nationality LIKE ?', [`%${query}%`, `%${query}%`]);
+        const results = await db.all('SELECT * FROM actors WHERE name LIKE ? OR nameAr LIKE ? OR nameEn LIKE ? OR nationality LIKE ?',
+            [`%${query}%`, `%${query}%`, `%${query}%`, `%${query}%`]);
         res.json(results.map(a => ({
             ...a,
             movies: JSON.parse(a.movies || '[]'),
@@ -723,9 +940,16 @@ app.get('/api/actors/:id', async (req, res) => {
     try {
         const actor = await db.get('SELECT * FROM actors WHERE id = ?', [req.params.id]);
         if (!actor) return res.status(404).json({ error: 'غير موجود' });
-        const series = await db.all('SELECT id, title, year, poster, isMovie, actors, actorRoles FROM series');
-        const linkedMovies = series.filter(s => s.isMovie && JSON.parse(s.actors || '[]').includes(req.params.id));
-        const linkedSeries = series.filter(s => !s.isMovie && JSON.parse(s.actors || '[]').includes(req.params.id));
+        const series = await db.all('SELECT id, title, year, poster, rating, tags, isMovie, actors, actorRoles FROM series');
+        const isLinked = (actorList, id) => {
+            try {
+                const list = typeof actorList === 'string' ? JSON.parse(actorList || '[]') : actorList;
+                return list.some(a => a === id || a.actorId === id);
+            } catch (e) { return false; }
+        };
+
+        const linkedMovies = series.filter(s => s.isMovie && isLinked(s.actors, req.params.id));
+        const linkedSeries = series.filter(s => !s.isMovie && isLinked(s.actors, req.params.id));
         const actorRoles = [];
         series.forEach(content => {
             const roles = JSON.parse(content.actorRoles || '[]');
@@ -744,8 +968,8 @@ app.get('/api/actors/:id', async (req, res) => {
         });
         res.json({
             ...actor,
-            movies: linkedMovies.map(m => ({ id: m.id, title: m.title, year: m.year, poster: m.poster })),
-            series: linkedSeries.map(s => ({ id: s.id, title: s.title, year: s.year, poster: s.poster })),
+            movies: linkedMovies.map(m => ({ ...m, isMovie: true })),
+            series: linkedSeries.map(s => ({ ...s, isMovie: false })),
             roles: actorRoles
         });
     } catch (error) {
@@ -799,9 +1023,94 @@ app.delete('/api/actors/:id', authenticateAdmin, async (req, res) => {
             }
         }
         await db.run('DELETE FROM actors WHERE id = ?', [req.params.id]);
-        res.json({ success: true, message: 'تم الحذف' });
+        res.json({ success: true, message: 'تم الحذف بنجاح' });
     } catch (error) {
         res.status(500).json({ error: 'خطأ' });
+    }
+});
+
+// إضافة عمل لممثل يدوياً
+app.post('/api/actors/:id/works', authenticateAdmin, async (req, res) => {
+    try {
+        const { workId } = req.body;
+        const actorId = req.params.id;
+
+        const actor = await db.get('SELECT * FROM actors WHERE id = ?', [actorId]);
+        const work = await db.get('SELECT * FROM series WHERE id = ?', [workId]);
+
+        if (!actor || !work) return res.status(404).json({ error: 'الممثل أو العمل غير موجود' });
+
+        let moviesList = [];
+        let seriesList = [];
+        try { moviesList = typeof actor.movies === 'string' ? JSON.parse(actor.movies || '[]') : (actor.movies || []); } catch (e) { }
+        try { seriesList = typeof actor.series === 'string' ? JSON.parse(actor.series || '[]') : (actor.series || []); } catch (e) { }
+
+        const entry = { id: work.id, title: work.title, role: 'ممثل' };
+
+        if (work.isMovie) {
+            if (!moviesList.find(m => m.id === work.id)) {
+                moviesList.push(entry);
+                await db.run('UPDATE actors SET movies = ?, updatedAt = ? WHERE id = ?',
+                    [JSON.stringify(moviesList), new Date().toISOString(), actorId]);
+            }
+        } else {
+            if (!seriesList.find(s => s.id === work.id)) {
+                seriesList.push(entry);
+                await db.run('UPDATE actors SET series = ?, updatedAt = ? WHERE id = ?',
+                    [JSON.stringify(seriesList), new Date().toISOString(), actorId]);
+            }
+        }
+
+        // Also update the work's actors list if not already there
+        let workActors = JSON.parse(work.actors || '[]');
+        let workActorRoles = JSON.parse(work.actorRoles || '[]');
+
+        if (!workActors.includes(actorId)) {
+            workActors.push(actorId);
+            workActorRoles.push({ actorId, actorName: actor.name, characterName: actor.name, role: 'ممثل', order: 99 });
+            await db.run('UPDATE series SET actors = ?, actorRoles = ? WHERE id = ?',
+                [JSON.stringify(workActors), JSON.stringify(workActorRoles), workId]);
+        }
+
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// إزالة عمل من ممثل
+app.delete('/api/actors/:actorId/works/:workId', authenticateAdmin, async (req, res) => {
+    try {
+        const { actorId, workId } = req.params;
+
+        const actor = await db.get('SELECT * FROM actors WHERE id = ?', [actorId]);
+        if (!actor) return res.status(404).json({ error: 'الممثل غير موجود' });
+
+        let moviesList = typeof actor.movies === 'string' ? JSON.parse(actor.movies || '[]') : (actor.movies || []);
+        let seriesList = typeof actor.series === 'string' ? JSON.parse(actor.series || '[]') : (actor.series || []);
+
+        moviesList = moviesList.filter(m => m.id !== workId);
+        seriesList = seriesList.filter(s => s.id !== workId);
+
+        await db.run('UPDATE actors SET movies = ?, series = ?, updatedAt = ? WHERE id = ?',
+            [JSON.stringify(moviesList), JSON.stringify(seriesList), new Date().toISOString(), actorId]);
+
+        // Also remove actor from the work's actors list
+        const work = await db.get('SELECT id, actors, actorRoles FROM series WHERE id = ?', [workId]);
+        if (work) {
+            let workActors = JSON.parse(work.actors || '[]');
+            let workActorRoles = JSON.parse(work.actorRoles || '[]');
+
+            workActors = workActors.filter(id => id !== actorId);
+            workActorRoles = workActorRoles.filter(r => r.actorId !== actorId);
+
+            await db.run('UPDATE series SET actors = ?, actorRoles = ? WHERE id = ?',
+                [JSON.stringify(workActors), JSON.stringify(workActorRoles), workId]);
+        }
+
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
     }
 });
 // ربط الممثلين بالمحتوى
@@ -970,6 +1279,115 @@ app.delete('/api/parts/:id', authenticateAdmin, async (req, res) => {
         res.status(500).json({ error: 'خطأ' });
     }
 });
+
+// ==================== 5.1 إدارة المجموعات (Collections) ====================
+app.get('/api/collections', async (req, res) => {
+    try {
+        const collections = await db.all('SELECT * FROM collections ORDER BY order_num ASC');
+        const collectionsWithItems = [];
+        
+        for (const col of collections) {
+            const items = await db.all(`
+                SELECT s.id, s.title, s.poster, s.backdrop 
+                FROM collection_items ci
+                JOIN series s ON ci.mediaId = s.id
+                WHERE ci.collectionId = ?
+                ORDER BY ci.orderNum ASC
+            `, [col.id]);
+            collectionsWithItems.push({ ...col, items });
+        }
+        
+        res.json(collectionsWithItems);
+    } catch (error) {
+        res.status(500).json({ error: 'خطأ في جلب المجموعات: ' + error.message });
+    }
+});
+
+app.get('/api/collections/:id', async (req, res) => {
+    try {
+        const col = await db.get('SELECT * FROM collections WHERE id = ?', [req.params.id]);
+        if (!col) return res.status(404).json({ error: 'المجموعة غير موجودة' });
+        
+        const items = await db.all(`
+            SELECT s.* 
+            FROM collection_items ci
+            JOIN series s ON ci.mediaId = s.id
+            WHERE ci.collectionId = ?
+            ORDER BY ci.orderNum ASC
+        `, [col.id]);
+        
+        res.json({ ...col, items });
+    } catch (error) {
+        res.status(500).json({ error: 'خطأ: ' + error.message });
+    }
+});
+
+app.post('/api/collections', authenticateAdmin, async (req, res) => {
+    try {
+        const { name, description, poster, backdrop, order_num } = req.body;
+        const id = 'col_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+        const newCol = {
+            id, name, description, 
+            poster: poster || '', 
+            backdrop: backdrop || '',
+            type: 'collection',
+            order_num: parseInt(order_num) || 0,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+        };
+        const keys = Object.keys(newCol);
+        await db.run(`INSERT INTO collections (${keys.join(',')}) VALUES (${keys.map(() => '?').join(',')})`, Object.values(newCol));
+        res.json({ success: true, message: 'تم إنشاء المجموعة بنجاح', collection: newCol });
+    } catch (error) {
+        res.status(500).json({ error: 'خطأ: ' + error.message });
+    }
+});
+
+app.put('/api/collections/:id', authenticateAdmin, async (req, res) => {
+    try {
+        const updates = { ...req.body, updatedAt: new Date().toISOString() };
+        const keys = Object.keys(updates);
+        await db.run(`UPDATE collections SET ${keys.map(k => `${k} = ?`).join(',')} WHERE id = ?`, [...Object.values(updates), req.params.id]);
+        res.json({ success: true, message: 'تم التحديث بنجاح' });
+    } catch (error) {
+        res.status(500).json({ error: 'خطأ: ' + error.message });
+    }
+});
+
+app.delete('/api/collections/:id', authenticateAdmin, async (req, res) => {
+    try {
+        await db.run('DELETE FROM collection_items WHERE collectionId = ?', [req.params.id]);
+        await db.run('DELETE FROM collections WHERE id = ?', [req.params.id]);
+        res.json({ success: true, message: 'تم حذف المجموعة بنجاح' });
+    } catch (error) {
+        res.status(500).json({ error: 'خطأ: ' + error.message });
+    }
+});
+
+app.post('/api/collections/:id/items', authenticateAdmin, async (req, res) => {
+    try {
+        const { mediaId, orderNum } = req.body;
+        const collectionId = req.params.id;
+        const id = 'col_item_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+        
+        await db.run(`INSERT INTO collection_items (id, collectionId, mediaId, orderNum, createdAt) VALUES (?, ?, ?, ?, ?)`,
+            [id, collectionId, mediaId, parseInt(orderNum) || 0, new Date().toISOString()]);
+            
+        res.json({ success: true, message: 'تمت إضافة المحتوى للمجموعة' });
+    } catch (error) {
+        res.status(500).json({ error: 'خطأ: ' + error.message });
+    }
+});
+
+app.delete('/api/collections/items/:mediaId', authenticateAdmin, async (req, res) => {
+    try {
+        const { collectionId } = req.query;
+        await db.run('DELETE FROM collection_items WHERE collectionId = ? AND mediaId = ?', [collectionId, req.params.mediaId]);
+        res.json({ success: true, message: 'تم حذف المحتوى من المجموعة' });
+    } catch (error) {
+        res.status(500).json({ error: 'خطأ: ' + error.message });
+    }
+});
 // ==================== 6. إدارة التصنيفات (Genres) ====================
 app.get('/api/genres', async (req, res) => {
     try {
@@ -979,7 +1397,8 @@ app.get('/api/genres', async (req, res) => {
             const count = series.filter(s => {
                 try {
                     const sGenres = JSON.parse(s.genres || '[]');
-                    return sGenres.includes(genre.name);
+                    // Check by ID or name to be backward compatible and robust
+                    return sGenres.includes(genre.id) || sGenres.includes(genre.name);
                 } catch (e) { return false; }
             }).length;
             return { ...genre, count };
@@ -991,10 +1410,20 @@ app.get('/api/genres', async (req, res) => {
 });
 app.get('/api/genres/:id', async (req, res) => {
     try {
+        console.log('Request for genre content:', req.params.id);
         const genre = await db.get('SELECT * FROM genres WHERE id = ?', [req.params.id]);
-        if (!genre) return res.status(404).json({ error: 'غير موجود' });
-        const series = await db.all('SELECT id, title, year, poster, isMovie, genres FROM series');
-        const relatedContent = series.filter(s => JSON.parse(s.genres || '[]').includes(genre.name));
+        if (!genre) {
+            console.warn('Genre not found:', req.params.id);
+            return res.status(404).json({ error: 'غير موجود' });
+        }
+
+        // Search in series table using LIKE for better performance and reliability
+        const series = await db.all('SELECT id, title, year, poster, isMovie, genres FROM series WHERE genres LIKE ? OR genres LIKE ?',
+            [`%"${genre.id}"%`, `%"${genre.name}"%`]);
+
+        console.log(`Found ${series.length} items for genre ${genre.name}`);
+
+        const relatedContent = series; // Already filtered by SQL
         res.json({
             ...genre,
             contentCount: relatedContent.length,
@@ -1003,14 +1432,21 @@ app.get('/api/genres/:id', async (req, res) => {
             }))
         });
     } catch (error) {
+        console.error('Error in genre detail:', error);
         res.status(500).json({ error: 'خطأ' });
     }
 });
 app.post('/api/genres', authenticateAdmin, async (req, res) => {
     try {
         const { name, color, icon } = req.body;
+        const trimmedName = name.trim();
+
+        // Check if exists
+        const existing = await db.get('SELECT id FROM genres WHERE name = ?', [trimmedName]);
+        if (existing) return res.status(400).json({ error: 'هذا التصنيف موجود مسبقاً' });
+
         const id = 'genre_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-        const newGenre = { id, name: name.trim(), color: color || '#1bd68e', icon: icon || 'fa-tag' };
+        const newGenre = { id, name: trimmedName, color: color || '#1bd68e', icon: icon || 'fa-tag' };
         const keys = Object.keys(newGenre);
         await db.run(`INSERT INTO genres (${keys.join(',')}) VALUES (${keys.map(() => '?').join(',')})`, Object.values(newGenre));
         res.json({ success: true, message: 'تم الإضافة', genre: newGenre });
@@ -1025,17 +1461,7 @@ app.put('/api/genres/:id', authenticateAdmin, async (req, res) => {
         const updates = req.body;
         const keys = Object.keys(updates);
         await db.run(`UPDATE genres SET ${keys.map(k => `${k} = ?`).join(',')} WHERE id = ?`, [...Object.values(updates), req.params.id]);
-        // Update name in series if changed
-        if (updates.name && updates.name !== oldGenre.name) {
-            const series = await db.all('SELECT id, genres FROM series');
-            for (const s of series) {
-                let genres = JSON.parse(s.genres || '[]');
-                if (genres.includes(oldGenre.name)) {
-                    genres = genres.map(g => g === oldGenre.name ? updates.name : g);
-                    await db.run('UPDATE series SET genres = ? WHERE id = ?', [JSON.stringify(genres), s.id]);
-                }
-            }
-        }
+
         res.json({ success: true, message: 'تم التحديث' });
     } catch (error) {
         res.status(500).json({ error: 'خطأ' });
@@ -1232,7 +1658,7 @@ app.get('/api/search', async (req, res) => {
         const type = req.query.type || 'all';
         let results = [];
         if (type === 'all' || type === 'series' || type === 'movie') {
-            const series = await db.all('SELECT * FROM series WHERE title LIKE ? OR description LIKE ?', [`%${query}%`, `%${query}%`]);
+            const series = await db.all('SELECT * FROM series WHERE title LIKE ? OR titleAr LIKE ? OR titleEn LIKE ? OR description LIKE ?', [`%${query}%`, `%${query}%`, `%${query}%`, `%${query}%`]);
             results = [...results, ...series.map(s => ({
                 ...s,
                 type: s.isMovie ? 'movie' : 'series',
@@ -1261,6 +1687,22 @@ app.get('/api/home', async (req, res) => {
         const featured = await db.all('SELECT * FROM series WHERE promoted = 1 LIMIT 5');
         const latestSeries = await db.all('SELECT * FROM series WHERE isMovie = 0 ORDER BY createdAt DESC LIMIT 10');
         const latestMovies = await db.all('SELECT * FROM series WHERE isMovie = 1 ORDER BY createdAt DESC LIMIT 10');
+        const collections = await db.all('SELECT * FROM collections ORDER BY order_num ASC');
+        
+        const collectionsWithItems = [];
+        for (const col of collections) {
+            const items = await db.all(`
+                SELECT s.id, s.title, s.poster, s.backdrop 
+                FROM collection_items ci
+                JOIN series s ON ci.mediaId = s.id
+                WHERE ci.collectionId = ?
+                ORDER BY ci.orderNum ASC
+            `, [col.id]);
+            if (items.length > 0) {
+                collectionsWithItems.push({ ...col, items });
+            }
+        }
+
         const genres = await db.all('SELECT * FROM genres');
         const countries = await db.all('SELECT * FROM countries');
         const mapSeries = s => ({
@@ -1274,14 +1716,15 @@ app.get('/api/home', async (req, res) => {
             isMovie: !!s.isMovie
         });
         res.json({
-            featured: featured.map(mapSeries),
-            latestSeries: latestSeries.map(mapSeries),
-            latestMovies: latestMovies.map(mapSeries),
+            featured: await filterContentForUser(await resolveGenreNames(featured.map(mapSeries)), req.query.userId),
+            latestSeries: await filterContentForUser(await resolveGenreNames(latestSeries.map(mapSeries)), req.query.userId),
+            latestMovies: await filterContentForUser(await resolveGenreNames(latestMovies.map(mapSeries)), req.query.userId),
+            collections: collectionsWithItems,
             genres,
             countries
         });
     } catch (error) {
-        res.status(500).json({ error: 'خطأ' });
+        res.status(500).json({ error: 'خطأ: ' + error.message });
     }
 });
 app.post('/api/watch/:id', async (req, res) => {
@@ -1619,125 +2062,21 @@ app.post('/api/fs/delete', authenticateAdmin, (req, res) => {
 // دالة مساعدة لتنسيق حجم الملف
 // جلب قائمة الملفات (نسخة مصححة 100%)
 // ==================== USERS & GROUPS API ====================
-app.get('/api/admin/users', authenticateAdmin, async (req, res) => {
-    try {
-        const users = await db.all('SELECT * FROM users');
-        res.json(users);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-app.post('/api/admin/users', authenticateAdmin, async (req, res) => {
-    try {
-        const { username, password, name, age, avatar, groupId, custom_restrictions } = req.body;
-        const id = 'user_' + Date.now();
-        const createdAt = new Date().toISOString();
-        await db.run(`INSERT INTO users (id, username, password, name, age, avatar, groupId, custom_restrictions, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [id, username, password, name, age, avatar, groupId, custom_restrictions, createdAt]);
-        res.json({ success: true, id });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-app.put('/api/admin/users/:id', authenticateAdmin, async (req, res) => {
-    try {
-        const { username, password, name, age, avatar, groupId, custom_restrictions } = req.body;
-        await db.run(`UPDATE users SET username=?, password=?, name=?, age=?, avatar=?, groupId=?, custom_restrictions=? WHERE id=?`,
-            [username, password, name, age, avatar, groupId, custom_restrictions, req.params.id]);
-        res.json({ success: true });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-app.delete('/api/admin/users/:id', authenticateAdmin, async (req, res) => {
-    try {
-        await db.run('DELETE FROM users WHERE id=?', [req.params.id]);
-        res.json({ success: true });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-app.post('/api/users/login', async (req, res) => {
-    try {
-        const { username, password } = req.body;
-        const user = await db.get('SELECT * FROM users WHERE username = ? AND password = ?', [username, password]);
-        if (user) {
-            // Update last active
-            await db.run('UPDATE users SET lastActive = ? WHERE id = ?', [new Date().toISOString(), user.id]);
-            res.json({ success: true, user });
-        } else {
-            res.status(401).json({ error: 'Username or password incorrect' });
-        }
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-app.get('/api/admin/groups', authenticateAdmin, async (req, res) => {
-    try {
-        const groups = await db.all('SELECT * FROM age_groups');
-        res.json(groups);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-app.post('/api/admin/groups', authenticateAdmin, async (req, res) => {
-    try {
-        const { name, min_age, max_age, blocked_genres, blocked_titles } = req.body;
-        const id = 'group_' + Date.now();
-        const createdAt = new Date().toISOString();
-        await db.run(`INSERT INTO age_groups (id, name, min_age, max_age, blocked_genres, blocked_titles, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-            [id, name, min_age, max_age, blocked_genres, blocked_titles, createdAt]);
-        res.json({ success: true, id });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-app.put('/api/admin/groups/:id', authenticateAdmin, async (req, res) => {
-    try {
-        const { name, min_age, max_age, blocked_genres, blocked_titles } = req.body;
-        await db.run(`UPDATE age_groups SET name=?, min_age=?, max_age=?, blocked_genres=?, blocked_titles=? WHERE id=?`,
-            [name, min_age, max_age, blocked_genres, blocked_titles, req.params.id]);
-        res.json({ success: true });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-app.delete('/api/admin/groups/:id', authenticateAdmin, async (req, res) => {
-    try {
-        await db.run('DELETE FROM age_groups WHERE id=?', [req.params.id]);
-        await db.run('UPDATE users SET groupId = NULL WHERE groupId=?', [req.params.id]);
-        res.json({ success: true });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-// ==================== USERS & GROUPS API ====================
+
 // جلب جميع المستخدمين (للوحة التحكم)
-app.get('/api/users', authenticateAdmin, async (req, res) => {
-    try {
-        const users = await db.all('SELECT * FROM users ORDER BY createdAt DESC');
-        res.json(users);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-// جلب جميع المجموعات (للوحة التحكم)
-app.get('/api/groups', authenticateAdmin, async (req, res) => {
-    try {
-        const groups = await db.all('SELECT * FROM age_groups ORDER BY min_age ASC');
-        res.json(groups);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
 app.get('/api/admin/users', authenticateAdmin, async (req, res) => {
+    console.log('GET /api/admin/users called');
     try {
         const users = await db.all('SELECT * FROM users ORDER BY createdAt DESC');
+        console.log(`Found ${users.length} users`);
         res.json(users);
     } catch (error) {
+        console.error('Error fetching users:', error);
         res.status(500).json({ error: error.message });
     }
 });
+
+// إنشاء مستخدم جديد
 app.post('/api/admin/users', authenticateAdmin, async (req, res) => {
     try {
         const { username, password, name, age, avatar, groupId, custom_restrictions } = req.body;
@@ -1745,11 +2084,13 @@ app.post('/api/admin/users', authenticateAdmin, async (req, res) => {
         const createdAt = new Date().toISOString();
         await db.run(`INSERT INTO users (id, username, password, name, age, avatar, groupId, custom_restrictions, createdAt, lastActive) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [id, username, password, name || username, age || 0, avatar || '/uploads/users/default.png', groupId || null, custom_restrictions || '{"titles":[],"genres":[]}', createdAt, createdAt]);
-        res.json({ success: true, id, user: { id, username, name, age, groupId } });
+        res.json({ success: true, id });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
 });
+
+// تحديث مستخدم
 app.put('/api/admin/users/:id', authenticateAdmin, async (req, res) => {
     try {
         const { username, password, name, age, avatar, groupId, custom_restrictions } = req.body;
@@ -1760,17 +2101,18 @@ app.put('/api/admin/users/:id', authenticateAdmin, async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 });
+
+// حذف مستخدم
 app.delete('/api/admin/users/:id', authenticateAdmin, async (req, res) => {
     try {
-        // حذف الملفات الشخصية المرتبطة أولاً
-        await db.run('DELETE FROM profiles WHERE userId = ?', [req.params.id]);
         await db.run('DELETE FROM users WHERE id=?', [req.params.id]);
         res.json({ success: true });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
 });
-// جلب المجموعات (للوحة التحكم)
+
+// جلب المجموعات
 app.get('/api/admin/groups', authenticateAdmin, async (req, res) => {
     try {
         const groups = await db.all('SELECT * FROM age_groups ORDER BY min_age ASC');
@@ -1780,60 +2122,70 @@ app.get('/api/admin/groups', authenticateAdmin, async (req, res) => {
     }
 });
 
+// إنشاء مجموعة
 app.post('/api/admin/groups', authenticateAdmin, async (req, res) => {
     try {
         const { name, min_age, max_age, blocked_genres, blocked_titles } = req.body;
-        const id = 'group_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
+        const id = 'group_' + Date.now();
         const createdAt = new Date().toISOString();
         await db.run(`INSERT INTO age_groups (id, name, min_age, max_age, blocked_genres, blocked_titles, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-            [id, name, parseInt(min_age) || 0, parseInt(max_age) || 18, blocked_genres || '[]', blocked_titles || '[]', createdAt]);
+            [id, name, min_age || 0, max_age || 18, blocked_genres || '[]', blocked_titles || '[]', createdAt]);
         res.json({ success: true, id });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
 });
+
+// تحديث مجموعة
 app.put('/api/admin/groups/:id', authenticateAdmin, async (req, res) => {
     try {
         const { name, min_age, max_age, blocked_genres, blocked_titles } = req.body;
         await db.run(`UPDATE age_groups SET name=?, min_age=?, max_age=?, blocked_genres=?, blocked_titles=? WHERE id=?`,
-            [name, parseInt(min_age) || 0, parseInt(max_age) || 18, blocked_genres || '[]', blocked_titles || '[]', req.params.id]);
+            [name, min_age || 0, max_age || 18, blocked_genres || '[]', blocked_titles || '[]', req.params.id]);
         res.json({ success: true });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
 });
+
+// حذف مجموعة
 app.delete('/api/admin/groups/:id', authenticateAdmin, async (req, res) => {
     try {
-        // تحديث المستخدمين الذين ينتمون لهذه المجموعة
-        await db.run('UPDATE users SET groupId = NULL WHERE groupId=?', [req.params.id]);
         await db.run('DELETE FROM age_groups WHERE id=?', [req.params.id]);
+        await db.run('UPDATE users SET groupId = NULL WHERE groupId=?', [req.params.id]);
         res.json({ success: true });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
 });
-// جلب ملفات المستخدمين الشخصية
-app.get('/api/users/:userId/profiles', authenticateAdmin, async (req, res) => {
+
+// --- Public Profile APIs ---
+
+// جلب جميع البروفايلات (المستخدمين) للشاشة الرئيسية
+app.get('/api/profiles', async (req, res) => {
     try {
-        const profiles = await db.all('SELECT * FROM profiles WHERE userId = ?', [req.params.userId]);
-        res.json(profiles);
+        const users = await db.all('SELECT id, name, avatar, role FROM users WHERE role != "admin"');
+        res.json(users);
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
 });
-// إنشاء ملف شخصي جديد
-app.post('/api/profiles', authenticateAdmin, async (req, res) => {
+
+// اختيار بروفايل
+app.post('/api/profiles/select', async (req, res) => {
     try {
-        const { userId, name, avatar, ageLimit, restrictions } = req.body;
-        const id = 'profile_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
-        const createdAt = new Date().toISOString();
-        await db.run(`INSERT INTO profiles (id, userId, name, avatar, ageLimit, restrictions, isDefault, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-            [id, userId, name, avatar || '/uploads/avatars/default.png', ageLimit || 0, JSON.stringify(restrictions || []), 0, createdAt]);
-        res.json({ success: true, id });
+        const { userId } = req.body;
+        const user = await db.get('SELECT id, username, name, age, avatar, role, groupId, custom_restrictions FROM users WHERE id = ?', [userId]);
+        if (user) {
+            res.json({ success: true, user });
+        } else {
+            res.status(404).json({ error: 'المستخدم غير موجود' });
+        }
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
 });
+
 // تحديث ملف شخصي
 app.put('/api/profiles/:id', authenticateAdmin, async (req, res) => {
     try {
@@ -1874,7 +2226,7 @@ app.get('/api/history/:userId', async (req, res) => {
 app.post('/api/history', async (req, res) => {
     try {
         const { userId, contentId, contentType, progress } = req.body;
-        if (!userId || !contentId) return res.status(400).json({error: 'userId and contentId required'});
+        if (!userId || !contentId) return res.status(400).json({ error: 'userId and contentId required' });
         const id = 'hist_' + Date.now();
         const watchedAt = new Date().toISOString();
         await db.run(`INSERT INTO watch_history (id, userId, contentId, contentType, watchedAt, progress) VALUES (?, ?, ?, ?, ?, ?)`,
@@ -1889,38 +2241,62 @@ async function filterContentForUser(contentArray, userId) {
     if (!userId) return contentArray;
     const user = await db.get('SELECT * FROM users WHERE id = ?', [userId]);
     if (!user) return contentArray;
+
     let blockedGenres = [];
     let blockedTitles = [];
-    
+
     // Custom restrictions
     try {
-        const custom = JSON.parse(user.custom_restrictions || '{"titles":[],"genres":[]}');
-        blockedGenres.push(...(custom.genres || []));
-        blockedTitles.push(...(custom.titles || []));
-    } catch(e){}
+        const custom = typeof user.custom_restrictions === 'string' ? JSON.parse(user.custom_restrictions) : user.custom_restrictions;
+        if (custom) {
+            blockedGenres.push(...(custom.genres || []));
+            blockedTitles.push(...(custom.titles || []));
+        }
+    } catch (e) { }
+
     // Group restrictions
     if (user.groupId) {
         const group = await db.get('SELECT * FROM age_groups WHERE id = ?', [user.groupId]);
         if (group) {
             try {
-                blockedGenres.push(...JSON.parse(group.blocked_genres || '[]'));
-                blockedTitles.push(...JSON.parse(group.blocked_titles || '[]'));
-            } catch(e){}
+                const bGenres = typeof group.blocked_genres === 'string' ? JSON.parse(group.blocked_genres) : group.blocked_genres;
+                const bTitles = typeof group.blocked_titles === 'string' ? JSON.parse(group.blocked_titles) : group.blocked_titles;
+                blockedGenres.push(...(bGenres || []));
+                blockedTitles.push(...(bTitles || []));
+            } catch (e) { }
         }
     }
+
+    // Clean and Normalize
+    blockedGenres = blockedGenres.map(g => g.toString().trim().toLowerCase());
+    blockedTitles = blockedTitles.map(t => t.toString().trim().toLowerCase());
+
     return contentArray.filter(item => {
+        const titleLower = item.title ? item.title.toLowerCase() : '';
+        const titleArLower = item.titleAr ? item.titleAr.toLowerCase() : '';
+        const titleEnLower = item.titleEn ? item.titleEn.toLowerCase() : '';
+
         // Filter by title
-        if (blockedTitles.includes(item.title)) return false;
-        
+        if (blockedTitles.includes(titleLower) ||
+            blockedTitles.includes(titleArLower) ||
+            blockedTitles.includes(titleEnLower)) return false;
+
         // Filter by genre
         let itemGenres = [];
-        try { itemGenres = typeof item.genres === 'string' ? JSON.parse(item.genres) : item.genres; } catch(e){}
-        if (itemGenres && itemGenres.some(g => blockedGenres.includes(g))) return false;
+        try {
+            itemGenres = typeof item.genres === 'string' ? JSON.parse(item.genres) : item.genres;
+        } catch (e) { }
+
+        if (itemGenres && itemGenres.some(g => {
+            const gName = g.name ? g.name.toLowerCase() : (typeof g === 'string' ? g.toLowerCase() : '');
+            return blockedGenres.includes(gName);
+        })) return false;
+
         // Filter by Age
-        // Try mapping TMDB age ratings to minimum age required
         const ratingMap = { 'G': 0, 'PG': 8, 'PG-13': 13, 'R': 17, 'NC-17': 18, 'TV-Y': 0, 'TV-Y7': 7, 'TV-G': 0, 'TV-PG': 8, 'TV-14': 14, 'TV-MA': 18 };
         const reqAge = ratingMap[item.ageRating] || 0;
         if (user.age < reqAge) return false;
+
         return true;
     });
 }
@@ -1944,7 +2320,7 @@ app.use((err, req, res, next) => {
                 ['admin_1', 'admin', 'admin123', 'مدير النظام', 'super_admin', new Date().toISOString()]);
             console.log('✅ تم إنشاء مشرف: admin / admin123');
         }
-        
+
         // التأكد من وجود بعض الفئات العمرية
         const groupsCheck = await db.get('SELECT * FROM age_groups LIMIT 1');
         if (!groupsCheck) {
@@ -1956,21 +2332,44 @@ app.use((err, req, res, next) => {
                 ['group_3', 'بالغين', 18, 100, '[]', '[]', new Date().toISOString()]);
             console.log('✅ تم إنشاء فئات عمرية تجريبية');
         }
-        
+
         // التأكد من وجود مستخدم تجريبي
-        const userCheck = await db.get('SELECT * FROM users LIMIT 1');
-        if (!userCheck) {
-            await db.run(`INSERT INTO users (id, username, password, name, age, avatar, createdAt, lastActive) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-                ['user_1', 'test', '123', 'مستخدم تجريبي', 25, '/uploads/avatars/default.png', new Date().toISOString(), new Date().toISOString()]);
-            console.log('✅ تم إنشاء مستخدم تجريبي: test / 123');
-        }
+        try {
+            const userCheck = await db.get('SELECT * FROM users WHERE username = ? OR id = ?', ['test', 'user_1']);
+            if (!userCheck) {
+                await db.run(`INSERT INTO users (id, username, password, name, age, avatar, createdAt, lastActive) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+                    ['user_1', 'test', '123', 'مستخدم تجريبي', 25, '/uploads/users/default.png', new Date().toISOString(), new Date().toISOString()]);
+                console.log('✅ تم إنشاء مستخدم تجريبي: test / 123');
+            }
+        } catch (e) { console.error('Error creating test user:', e.message); }
     } catch (error) {
         console.error('خطأ في إضافة البيانات:', error);
     }
 })();
-// بدء السيرفر
-app.listen(PORT, () => {
-    console.log(`http://localhost:${PORT}`);
-    console.log(`http://localhost:${PORT}/admin`);
-    console.log(`http://localhost:${PORT}/srt`);
+
+// منع انهيار السيرفر بسبب رفض غير معالج للوعود
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('CRITICAL: Unhandled Rejection at:', promise, 'reason:', reason);
 });
+
+process.on('uncaughtException', (err) => {
+    console.error('CRITICAL: Uncaught Exception:', err);
+    // Optionally keep it running or exit
+});
+
+// بدء السيرفر
+try {
+    app.listen(PORT, () => {
+        console.log(`[+] Server started on port ${PORT}`);
+        console.log(`[+] Home: http://localhost:${PORT}`);
+        console.log(`[+] Admin: http://localhost:${PORT}/admin`);
+    }).on('error', (err) => {
+        if (err.code === 'EADDRINUSE') {
+            console.error(`[X] Port ${PORT} is already in use.`);
+        } else {
+            console.error('[X] Server error:', err);
+        }
+    });
+} catch (e) {
+    console.error('[X] Failed to start server:', e);
+}
