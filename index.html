@@ -7,16 +7,17 @@
     <meta name="description"
         content="MediaNet Ultra - ميديا نت ألترا: منصة مشاهدة الأفلام والمسلسلات الحصرية بجودة عالية وتصميم عصري.">
     <title>MediaNet Ultra | ميديا نت ألترا</title>
+    <base href="/">
 
 
-    <script src="script.js"></script>
+    <script src="/script.js"></script>
 
-    <link rel="stylesheet" href="fontawesome/fontawesome/css/all.min.css">
+    <link rel="stylesheet" href="/fontawesome/fontawesome/css/all.min.css">
 
-    <link href="css/font.css" rel="stylesheet">
+    <link href="/css/font.css" rel="stylesheet">
 
-    <link href="css/collection.css" rel="stylesheet">
-    <link href="videojs/video-js.css" rel="stylesheet" />
+    <link href="/css/collection.css" rel="stylesheet">
+    <link href="/videojs/video-js.css" rel="stylesheet" />
     <script src="/videojs/video.min.js"></script>
 
     <script>
@@ -1309,10 +1310,18 @@
                 <i
                     class="fa-solid fa-magnifying-glass text-2xl text-gray-500 group-[.active]:text-primary transition-all hover:text-white"></i>
             </button>
-        </div>
+            <button onclick="Router.go('watchlist')" class="nav-link group" data-view="watchlist">
+                <i
+                    class="fa-regular fa-bookmark text-2xl text-gray-500 group-[.active]:text-primary transition-all hover:text-white"></i>
+            </button>
+            <button onclick="Router.go('account')" class="nav-link group" data-view="account">
+                <i
+                    class="fa-solid fa-user text-2xl text-gray-500 group-[.active]:text-primary transition-all hover:text-white"></i>
+            </button>
+        <div class="mt-auto pb-8">
     </aside>
 
-    <nav class="md:hidden fixed bottom-0 left-0 right-0 h-14 glass z-50 transition-transform duration-300"
+    <nav class="md:hidden fixed bottom-0 left-0 right-0 h-16 glass z-50 transition-transform duration-300 border-t border-white/5"
         id="mobile-nav">
         <div class="flex justify-around items-center h-full">
             <button onclick="Router.go('home')" class="mobile-nav-link flex flex-col items-center gap-1 text-gray-500"
@@ -1325,13 +1334,18 @@
                 <i class="fa-solid fa-film text-xl"></i>
                 <span class="text-[10px] font-bold">أفلام</span>
             </button>
-            <button onclick="Router.go('series')" class="mobile-nav-link flex flex-col items-center gap-1 text-gray-500"
-                data-view="series">
-                <i class="fa-solid fa-tv text-xl"></i>
-                <span class="text-[10px] font-bold">مسلسلات</span>
+            <button onclick="Router.go('watchlist')" class="mobile-nav-link flex flex-col items-center gap-1 text-gray-500"
+                data-view="watchlist">
+                <i class="fa-solid fa-bookmark text-xl"></i>
+                <span class="text-[10px] font-bold">قائمتي</span>
             </button>
-            <button onclick="Router.go('search')" class="flex flex-col items-center gap-1 text-gray-500">
-                <i class="fa-solid fa-search text-xl"></i>
+            <button onclick="Router.go('account')" class="mobile-nav-link flex flex-col items-center gap-1 text-gray-500"
+                data-view="account">
+                <i class="fa-solid fa-user text-xl"></i>
+                <span class="text-[10px] font-bold">حسابي</span>
+            </button>
+            <button onclick="toggleMobileDrawer()" class="flex flex-col items-center gap-1 text-gray-500">
+                <i class="fa-solid fa-bars text-xl"></i>
                 <span class="text-[10px] font-bold">المزيد</span>
             </button>
         </div>
@@ -1349,7 +1363,7 @@
             </div>
 
             <div class="flex flex-col gap-8">
-                <div class="flex items-center gap-4 pb-6 border-b border-white/5">
+                <div onclick="Router.go('account'); toggleMobileDrawer()" class="flex items-center gap-4 pb-6 border-b border-white/5 cursor-pointer hover:opacity-80 transition-opacity">
                     <img src="/uploads/users/default.png"
                         class="user-avatar-display w-16 h-16 rounded-full border-2 border-primary object-cover">
                     <div>
@@ -1367,6 +1381,11 @@
                     class="flex items-center gap-4 text-gray-400 hover:text-primary transition-colors text-right">
                     <i class="fa-regular fa-clock w-6"></i>
                     <span class="font-bold">مشاهدة لاحقاً</span>
+                </button>
+                <button onclick="Router.go('account')"
+                    class="flex items-center gap-4 text-gray-400 hover:text-primary transition-colors text-right">
+                    <i class="fa-solid fa-user-gear w-6"></i>
+                    <span class="font-bold">حسابي</span>
                 </button>
                 <button onclick="Router.go('settings')"
                     class="flex items-center gap-4 text-gray-400 hover:text-primary transition-colors text-right">
@@ -1388,7 +1407,88 @@
     </div>
 
     <script>
+        // ==================== دوال تسجيل الدخول عبر البروفايل (عالمية) ====================
+        window.showPasswordPrompt = function(userId, displayName) {
+            console.log('[DEBUG] Opening password prompt for:', displayName, userId);
+            const prompt = document.getElementById('password-prompt');
+            const nameEl = document.getElementById('password-prompt-name');
+            const userIdInput = document.getElementById('profile-user-id');
+            const passwordInput = document.getElementById('profile-password');
+            const errorDiv = document.getElementById('profile-login-error');
+            
+            if (!prompt) {
+                console.error('[ERROR] Password prompt element not found!');
+                return;
+            }
+
+            nameEl.textContent = displayName;
+            userIdInput.value = userId;
+            errorDiv.classList.add('hidden');
+            passwordInput.value = '';
+            prompt.classList.remove('hidden');
+            
+            prompt.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            setTimeout(() => passwordInput.focus(), 300);
+        };
+
+        window.handleProfileLogin = async function(e) {
+            e.preventDefault();
+            console.log('[DEBUG] Handling profile login submission');
+            const userId = document.getElementById('profile-user-id').value;
+            const password = document.getElementById('profile-password').value;
+            const errorDiv = document.getElementById('profile-login-error');
+
+            if (!password) {
+                errorDiv.textContent = 'يرجى إدخال كلمة المرور';
+                errorDiv.classList.remove('hidden');
+                return;
+            }
+
+            try {
+                const userRes = await fetch(`/api/profiles/select`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userId })
+                });
+                const userData = await userRes.json();
+                
+                if (!userData.success) {
+                    errorDiv.textContent = 'المستخدم غير موجود';
+                    errorDiv.classList.remove('hidden');
+                    return;
+                }
+
+                const loginRes = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: userData.user.username, password })
+                });
+                const loginData = await loginRes.json();
+
+                if (loginData.success) {
+                    const sessionData = {
+                        userId: loginData.user.id,
+                        username: loginData.user.username,
+                        name: userData.user.name || loginData.user.username,
+                        avatar: userData.user.avatar,
+                        age: userData.user.age,
+                        profileId: loginData.user.id
+                    };
+                    localStorage.setItem('session', JSON.stringify(sessionData));
+                    window.location.reload(); 
+                } else {
+                    errorDiv.textContent = loginData.error || 'كلمة المرور غير صحيحة';
+                    errorDiv.classList.remove('hidden');
+                }
+            } catch (err) {
+                console.error('[ERROR] Profile login failed:', err);
+                errorDiv.textContent = 'حدث خطأ في الاتصال';
+                errorDiv.classList.remove('hidden');
+            }
+        };
+
         const API_BASE = '/api';
+        let currentSession = null;
 
         async function handleLogin(e) {
             e.preventDefault();
@@ -1397,7 +1497,7 @@
             const errDiv = document.getElementById('login-error');
 
             try {
-                const res = await fetch('/api/users/login', {
+                const res = await fetch('/api/auth/login', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ username, password })
@@ -1409,10 +1509,11 @@
                         userId: data.user.id,
                         username: data.user.username,
                         name: data.user.name,
-                        age: data.user.age
+                        age: data.user.age,
+                        profileId: data.user.id
                     });
                     document.getElementById('login-modal').style.display = 'none';
-                    Router.go('home'); // Reload content with user constraints
+                    Router.go('home');
                 } else {
                     errDiv.innerText = data.error || 'فشل تسجيل الدخول';
                     errDiv.classList.remove('hidden');
@@ -1426,20 +1527,34 @@
         // Global check on load
         window.addEventListener('DOMContentLoaded', () => {
             if (!loadSession()) {
-                State.view = 'profileSelection';
+                Router.go('profileSelection', {}, false);
+            } else {
+                Router.resolve();
             }
-            Router.render();
         });
 
-        // Intercept API fetch calls
+        window.onpopstate = (e) => {
+            if (e.state) {
+                Router.go(e.state.view, e.state.params, false);
+            } else {
+                Router.resolve();
+            }
+        };
+
+        // Intercept API fetch calls to add userId and profileId
         const originalFetch = window.fetch;
         window.fetch = function () {
             let [resource, config] = arguments;
-            if (typeof resource === 'string' && resource.startsWith(API_BASE)) {
-                if (currentSession && currentSession.id) {
-                    const separator = resource.includes('?') ? '&' : '?';
-                    resource += separator + 'userId=' + currentSession.id;
+            const isApi = typeof resource === 'string' && resource.startsWith(API_BASE);
+            const isAuth = typeof resource === 'string' && resource.includes('/auth/');
+            
+            if (isApi && !isAuth && currentSession && currentSession.userId) {
+                const separator = resource.includes('?') ? '&' : '?';
+                let query = 'userId=' + currentSession.userId;
+                if (currentSession.profileId) {
+                    query += '&profileId=' + currentSession.profileId;
                 }
+                resource += separator + query;
             }
             return originalFetch(resource, config);
         };
@@ -1465,7 +1580,7 @@
 
         const State = { view: 'home', params: {}, player: null };
 
-        let currentSession = null; // { userId, username, profileId, profileName, profileAvatar, restrictions, ageLimit }
+        // currentSession declared at the top of script
 
         function saveSession(session) {
             currentSession = session;
@@ -1477,19 +1592,18 @@
             localStorage.removeItem('session');
         }
 
-        function logout() {
-            clearSession();
-            window.location.reload();
-        }
 
         function loadSession() {
             const saved = localStorage.getItem('session');
             if (saved) {
                 try {
                     currentSession = JSON.parse(saved);
-                    return true;
+                    if (currentSession && currentSession.userId) {
+                        return true;
+                    }
                 } catch (e) { }
             }
+            currentSession = null;
             return false;
         }
 
@@ -1503,22 +1617,79 @@
 
         function logout() {
             clearSession();
-            Router.go('login');
+            Router.go('profileSelection');
         }
 
 
         // 1. إدارة التوجيه (Router)
         const Router = {
-            async go(view, params = {}) {
+            async go(view, params = {}, push = true) {
+                // منع الدخول لأي صفحة إذا لم يكن هناك جلسة
+                if (!currentSession && view !== 'profileSelection') {
+                    view = 'profileSelection';
+                    params = {};
+                }
+
                 State.view = view;
                 State.params = params;
+
+                if (push) {
+                    let path = '/';
+                    if (view === 'movies') path = '/movies';
+                    else if (view === 'series') path = '/series';
+                    else if (view === 'search') path = '/search';
+                    else if (view === 'details') path = `/details/${params.id}`;
+                    else if (view === 'collection') path = `/collection/${params.id}`;
+                    else if (view === 'actor') path = `/actor/${params.id}`;
+                    else if (view === 'player') path = `/player/${params.id}/${params.type}`;
+                    else if (view === 'account') path = '/account';
+                    
+                    history.pushState({ view, params }, '', path);
+                }
+
                 window.scrollTo({ top: 0, behavior: 'smooth' });
                 this.updateActiveNav();
                 await this.render();
             },
+
+            async resolve() {
+                const path = window.location.pathname;
+                let view = 'home';
+                let params = {};
+
+                if (path === '/movies') view = 'movies';
+                else if (path === '/series') view = 'series';
+                else if (path === '/search') view = 'search';
+                else if (path === '/account') view = 'account';
+                else if (path.startsWith('/details/')) {
+                    view = 'details';
+                    params.id = path.split('/')[2];
+                }
+                else if (path.startsWith('/collection/')) {
+                    view = 'collection';
+                    params.id = path.split('/')[2];
+                }
+                else if (path.startsWith('/actor/')) {
+                    view = 'actor';
+                    params.id = path.split('/')[2];
+                }
+                else if (path.startsWith('/player/')) {
+                    view = 'player';
+                    const parts = path.split('/');
+                    params.id = parts[2];
+                    params.type = parts[3];
+                }
+
+                await this.go(view, params, false);
+            },
+
             updateActiveNav() {
                 document.querySelectorAll('.nav-link').forEach(el => {
                     el.classList.toggle('active', el.dataset.view === State.view);
+                });
+                document.querySelectorAll('.mobile-nav-link').forEach(el => {
+                    el.classList.toggle('text-primary', el.dataset.view === State.view);
+                    el.classList.toggle('text-gray-500', el.dataset.view !== State.view);
                 });
             },
             async render() {
@@ -1575,6 +1746,16 @@
                             document.querySelector('nav')?.classList.remove('hidden');
                             await Views.collection(State.params);
                             return;
+                        case 'account':
+                            document.querySelector('aside')?.classList.remove('hidden');
+                            document.querySelector('nav')?.classList.remove('hidden');
+                            html = await Views.account();
+                            break;
+                        case 'watchlist':
+                            document.querySelector('aside')?.classList.remove('hidden');
+                            document.querySelector('nav')?.classList.remove('hidden');
+                            html = await Views.watchlist();
+                            break;
                     }
                     root.innerHTML = `<div class="page-fade">${html}</div>`;
                     if (State.view === 'player') PlayerEngine.init();
@@ -2538,45 +2719,6 @@
 
 
 
-            async profileSelection() {
-                try {
-                    const res = await fetch(`${API_BASE}/profiles`);
-                    const profiles = await res.json();
-
-                    document.querySelector('aside')?.classList.add('hidden');
-                    document.querySelector('nav')?.classList.add('hidden');
-
-                    return `
-                        <div class="min-h-screen w-full flex flex-col items-center justify-center bg-obsidian animate-in fade-in duration-700">
-                            <div class="text-center mb-16">
-                                <h1 class="text-4xl md:text-5xl font-black mb-4">من يشاهد الآن؟</h1>
-                                <p class="text-gray-500 text-lg">اختر بروفايلك الشخصي للمتابعة</p>
-                            </div>
-                            <div class="flex flex-wrap justify-center gap-8 md:gap-12 max-w-6xl px-6">
-                                ${profiles.map(p => `
-                                    <div onclick="selectProfile('${p.id}')" class="group cursor-pointer flex flex-col items-center">
-                                        <div class="w-32 h-32 md:w-40 md:h-40 rounded-[2rem] overflow-hidden border-4 border-transparent group-hover:border-primary group-hover:scale-110 transition-all duration-500 shadow-2xl relative">
-                                            <img src="${p.avatar || '/uploads/users/default.png'}" class="w-full h-full object-cover">
-                                            <div class="absolute inset-0 bg-black/20 group-hover:bg-transparent transition-colors"></div>
-                                        </div>
-                                        <span class="mt-5 text-xl font-black text-gray-400 group-hover:text-white transition-colors">${p.name}</span>
-                                    </div>
-                                `).join('')}
-                                
-                                <div onclick="document.getElementById('login-modal').style.display='flex'" class="group cursor-pointer flex flex-col items-center">
-                                    <div class="w-32 h-32 md:w-40 md:h-40 rounded-[2rem] overflow-hidden border-4 border-dashed border-white/10 group-hover:border-primary group-hover:scale-110 transition-all duration-500 flex items-center justify-center bg-white/5">
-                                        <i class="fas fa-lock text-3xl text-gray-600 group-hover:text-primary"></i>
-                                    </div>
-                                    <span class="mt-5 text-xl font-black text-gray-500 group-hover:text-white">الإدارة</span>
-                                </div>
-                            </div>
-                        </div>
-                    `;
-                } catch (e) {
-                    console.error(e);
-                    return `<div class="min-h-screen flex items-center justify-center text-red-500">حدث خطأ في تحميل البروفايلات</div>`;
-                }
-            },
 
 
 
@@ -2723,29 +2865,295 @@
                     console.error('Error:', error);
                     appRoot.innerHTML = `<div class="text-center p-20 text-red-500 font-bold">خطأ في تحميل المجموعة: ${error.message}</div>`;
                 }
+            },
+
+            async account() {
+                const s = currentSession || {};
+                if (!s.userId) return `<div class="p-20 text-center">يرجى تسجيل الدخول</div>`;
+
+                let history = [];
+                let watchlist = [];
+                try {
+                    const hRes = await fetch(`${API_BASE}/history/${s.userId}`);
+                    const wRes = await fetch(`${API_BASE}/watchlist/${s.userId}`);
+                    
+                    const hData = await hRes.json();
+                    const wData = await wRes.json();
+                    
+                    history = Array.isArray(hData) ? hData : [];
+                    watchlist = Array.isArray(wData) ? wData : [];
+                } catch (e) { console.error('Error fetching account data:', e); }
+
+                return `
+                    <div class="min-h-screen pt-10 md:pt-20 pb-32">
+                        <div class="max-w-6xl mx-auto px-4 md:px-10">
+                            <!-- Dashboard Header -->
+                            <div class="flex flex-col md:flex-row items-center gap-8 mb-12 bg-surface/40 p-10 rounded-[3rem] border border-white/5 glass relative overflow-hidden">
+                                <div class="absolute top-0 right-0 w-64 h-64 bg-primary/5 blur-[100px] rounded-full"></div>
+                                
+                                <div class="relative group">
+                                    <div class="relative w-32 h-32 md:w-44 md:h-44 rounded-full overflow-hidden border-4 border-primary/20 shadow-2xl">
+                                        <img src="${s.avatar || '/uploads/avatars/default.png'}" 
+                                             id="profile-preview-large"
+                                             class="w-full h-full object-cover transition-transform group-hover:scale-110">
+                                        
+                                        <!-- Camera Overlay Icon -->
+                                        <div onclick="window.toggleAvatarMenu(event)" class="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
+                                            <i class="fa-solid fa-camera text-3xl text-white"></i>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Avatar Menu -->
+                                    <div id="avatar-menu" class="absolute top-full mt-4 left-1/2 -translate-x-1/2 w-48 bg-obsidian border border-white/10 rounded-2xl shadow-2xl hidden z-50 overflow-hidden glass">
+                                        <button onclick="document.getElementById('avatar-upload-input').click()" class="w-full px-6 py-4 text-right hover:bg-primary/10 text-white font-bold transition-colors flex items-center justify-between">
+                                            <span>رفع صورة</span>
+                                            <i class="fa-solid fa-upload text-primary"></i>
+                                        </button>
+                                        <button onclick="window.deleteAvatar()" class="w-full px-6 py-4 text-right hover:bg-red-500/10 text-red-500 font-bold transition-colors border-t border-white/5 flex items-center justify-between">
+                                            <span>حذف الصورة</span>
+                                            <i class="fa-solid fa-trash"></i>
+                                        </button>
+                                    </div>
+                                    <input type="file" id="avatar-upload-input" class="hidden" accept="image/*" onchange="window.handleAvatarUpload(this)">
+                                </div>
+
+                                <div class="text-center md:text-right flex-1 z-10">
+                                    <div class="flex items-center justify-center md:justify-end gap-4 mb-3 group/name">
+                                        <h1 id="account-display-name" 
+                                            contenteditable="true" 
+                                            onblur="window.saveInlineName(this)"
+                                            onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur()}"
+                                            class="text-4xl md:text-6xl font-black text-white outline-none border-b-2 border-transparent focus:border-primary transition-all px-2">${s.name || s.username}</h1>
+                                        <i class="fa-solid fa-pen text-gray-600 text-xl group-hover/name:text-primary transition-colors cursor-pointer" onclick="document.getElementById('account-display-name').focus()"></i>
+                                    </div>
+                                    <p class="text-gray-500 font-bold flex items-center justify-center md:justify-end gap-2">
+                                        <span class="text-primary/60">@${s.username}</span>
+                                        <span class="w-1.5 h-1.5 bg-gray-800 rounded-full"></span>
+                                        <span>عضو مميز</span>
+                                    </p>
+                                </div>
+                            </div>
+
+                            <!-- Dashboard Grid -->
+                            <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                                <!-- Tabs Sidebar -->
+                                <div class="lg:col-span-3 flex lg:flex-col gap-3 overflow-x-auto lg:overflow-visible pb-4 lg:pb-0 no-scrollbar">
+                                    <button onclick="window.switchTab('overview')" class="account-tab active flex items-center gap-4 px-8 py-5 rounded-2xl font-black transition-all">
+                                        <i class="fa-solid fa-house-user"></i>
+                                        <span>الرئيسية</span>
+                                    </button>
+                                    <button onclick="window.switchTab('security')" class="account-tab flex items-center gap-4 px-8 py-5 rounded-2xl font-black transition-all text-gray-500 hover:bg-white/5">
+                                        <i class="fa-solid fa-lock"></i>
+                                        <span>الأمان</span>
+                                    </button>
+                                    <button onclick="window.switchTab('stats')" class="account-tab flex items-center gap-4 px-8 py-5 rounded-2xl font-black transition-all text-gray-500 hover:bg-white/5">
+                                        <i class="fa-solid fa-chart-line"></i>
+                                        <span>الإحصائيات</span>
+                                    </button>
+                                    
+                                    <div class="mt-auto pt-6 lg:border-t border-white/5">
+                                        <button onclick="logout()" class="w-full flex items-center gap-4 px-8 py-5 rounded-2xl font-black transition-all text-red-500 hover:bg-red-500/10">
+                                            <i class="fa-solid fa-power-off"></i>
+                                            <span>تسجيل الخروج</span>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- Content Area -->
+                                <div class="lg:col-span-9">
+                                    <!-- Overview Tab -->
+                                    <div id="tab-overview" class="tab-content space-y-12 animate-fade-in">
+                                        <!-- Continue Watching -->
+                                        <section>
+                                            <div class="flex items-center justify-between mb-8">
+                                                <h3 class="text-2xl font-black flex items-center gap-4">
+                                                    <span class="w-2 h-8 bg-primary rounded-full"></span>
+                                                    واصل المشاهدة
+                                                </h3>
+                                                <button class="text-primary font-bold text-sm hover:underline">عرض الكل</button>
+                                            </div>
+                                            ${history.length > 0 ? `
+                                                <div class="flex gap-6 overflow-x-auto pb-6 no-scrollbar">
+                                                    ${history.map(item => `
+                                                        <div onclick="Router.go('player', {id: '${item.contentId}', type: '${item.isMovie ? 'movie' : 'episode'}'})" 
+                                                             class="flex-shrink-0 w-72 group cursor-pointer">
+                                                            <div class="relative aspect-video rounded-3xl overflow-hidden mb-4 border border-white/5 shadow-lg">
+                                                                <img src="${item.backdrop || item.poster}" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700">
+                                                                <div class="absolute bottom-0 left-0 right-0 h-1.5 bg-white/10">
+                                                                    <div class="h-full bg-primary shadow-[0_0_10px_#1bd68e]" style="width: ${item.progress}%"></div>
+                                                                </div>
+                                                                <div class="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                    <div class="w-14 h-14 bg-primary rounded-full flex items-center justify-center text-black">
+                                                                        <i class="fa-solid fa-play text-xl ml-1"></i>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                            <h4 class="font-black text-white text-right group-hover:text-primary transition-colors">${item.title}</h4>
+                                                            <p class="text-[10px] text-gray-500 text-right mt-1 font-bold">آخر مشاهدة ${new Date(item.watchedAt).toLocaleDateString('ar-SA')}</p>
+                                                        </div>
+                                                    `).join('')}
+                                                </div>
+                                            ` : `<div class="glass p-16 rounded-[2.5rem] text-center border-dashed border-2 border-white/5">
+                                                    <i class="fa-solid fa-play-circle text-5xl text-gray-800 mb-4 block"></i>
+                                                    <p class="text-gray-600 font-bold">لا يوجد محتوى في سجل المشاهدة</p>
+                                                 </div>`}
+                                        </section>
+                                    </div>
+
+                                    <!-- Security Tab -->
+                                    <div id="tab-security" class="tab-content hidden animate-fade-in">
+                                        <form onsubmit="window.handlePasswordUpdate(event)" class="glass p-10 md:p-16 rounded-[3rem] border border-white/5 space-y-10">
+                                            <div class="flex items-center gap-4 mb-4">
+                                                <i class="fa-solid fa-key text-primary text-3xl"></i>
+                                                <h3 class="text-2xl font-black">تغيير كلمة المرور</h3>
+                                            </div>
+                                            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                                <div class="space-y-4">
+                                                    <label class="block text-gray-500 font-bold text-right pr-2">كلمة المرور الجديدة</label>
+                                                    <input type="password" id="update-password" 
+                                                           class="w-full bg-obsidian/50 border border-white/10 rounded-2xl px-6 py-5 text-white font-bold focus:border-primary transition-all text-right shadow-inner"
+                                                           placeholder="••••••••">
+                                                </div>
+                                                <div class="space-y-4">
+                                                    <label class="block text-gray-500 font-bold text-right pr-2">تأكيد كلمة المرور</label>
+                                                    <input type="password" id="confirm-password" 
+                                                           class="w-full bg-obsidian/50 border border-white/10 rounded-2xl px-6 py-5 text-white font-bold focus:border-primary transition-all text-right shadow-inner"
+                                                           placeholder="••••••••">
+                                                </div>
+                                            </div>
+                                            <button type="submit" class="w-full bg-primary text-black font-black py-5 rounded-2xl hover:shadow-[0_0_30px_#1bd68e44] hover:scale-[1.01] active:scale-95 transition-all text-lg shadow-xl shadow-primary/10">
+                                                تحديث كلمة المرور
+                                            </button>
+                                        </form>
+                                    </div>
+
+                                    <!-- Stats Tab -->
+                                    <div id="tab-stats" class="tab-content hidden animate-fade-in">
+                                        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                            <div class="glass p-10 rounded-[2.5rem] border border-white/5 relative overflow-hidden group">
+                                                <div class="absolute top-0 right-0 w-32 h-32 bg-primary/5 -mr-16 -mt-16 rounded-full group-hover:scale-150 transition-transform duration-700"></div>
+                                                <i class="fa-solid fa-film text-primary text-4xl mb-6"></i>
+                                                <div class="text-5xl font-black text-white mb-2">${history.filter(i=>i.isMovie).length}</div>
+                                                <div class="text-gray-500 font-black uppercase tracking-widest text-sm">أفلام شاهدتها</div>
+                                            </div>
+                                            <div class="glass p-10 rounded-[2.5rem] border border-white/5 relative overflow-hidden group">
+                                                <div class="absolute top-0 right-0 w-32 h-32 bg-accent/5 -mr-16 -mt-16 rounded-full group-hover:scale-150 transition-transform duration-700"></div>
+                                                <i class="fa-solid fa-tv text-accent text-4xl mb-6"></i>
+                                                <div class="text-5xl font-black text-white mb-2">${history.filter(i=>!i.isMovie).length}</div>
+                                                <div class="text-gray-500 font-black uppercase tracking-widest text-sm">مسلسلات شاهدتها</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <style>
+                        .account-tab.active {
+                            background: #1bd68e;
+                            color: #000;
+                            box-shadow: 0 10px 30px rgba(27,214,142,0.2);
+                        }
+                        [contenteditable="true"]:focus {
+                            background: rgba(255,255,255,0.05);
+                            border-radius: 12px;
+                        }
+                    </style>
+                `;
+            },
+
+            async watchlist() {
+                const s = currentSession || {};
+                if (!s.userId) return `<div class="p-20 text-center">يرجى تسجيل الدخول</div>`;
+
+                let watchlist = [];
+                try {
+                    watchlist = await fetch(`${API_BASE}/watchlist/${s.userId}`).then(r => r.json());
+                } catch (e) { console.error('Error fetching watchlist:', e); }
+
+                return `
+                    <div class="min-h-screen pt-32 px-6 lg:pr-40 pb-20 container-custom">
+                        <div class="flex items-center justify-between mb-12">
+                            <h1 class="text-4xl font-black text-white flex items-center gap-5">
+                                <span class="w-1.5 h-10 bg-primary rounded-full"></span>
+                                قائمتي
+                            </h1>
+                            <div class="text-gray-500 font-bold">${watchlist.length} عنصر</div>
+                        </div>
+
+                        ${watchlist.length > 0 ? `
+                            <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-6">
+                                ${watchlist.map(item => `
+                                    <div onclick="Router.go('details', {id: '${item.contentId}'})" class="group cursor-pointer">
+                                        <div class="relative aspect-[2/3] rounded-2xl overflow-hidden mb-3 shadow-xl">
+                                            <img src="${item.poster}" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500">
+                                            <div class="absolute inset-0 bg-gradient-to-t from-obsidian via-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-4 text-right">
+                                                <div class="flex items-center justify-end gap-2 text-xs font-black">
+                                                    <span>${item.rating}</span>
+                                                    <i class="fa-solid fa-star text-primary"></i>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <h3 class="font-black text-sm truncate group-hover:text-primary transition-colors text-right">${item.title}</h3>
+                                        <p class="text-[10px] text-gray-500 text-right mt-1">${item.year}</p>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        ` : `
+                            <div class="flex flex-col items-center justify-center py-40 glass rounded-[2.5rem]">
+                                <i class="fa-regular fa-bookmark text-6xl text-gray-800 mb-6"></i>
+                                <h3 class="text-xl font-black text-gray-400 mb-2">قائمتك فارغة</h3>
+                                <p class="text-gray-600 font-bold mb-8">ابدأ بإضافة الأفلام والمسلسلات التي تنوي مشاهدتها لاحقاً</p>
+                                <button onclick="Router.go('home')" class="px-8 py-3 bg-primary text-black font-black rounded-xl hover:scale-105 transition-transform">استكشف المحتوى</button>
+                            </div>
+                        `}
+                    </div>
+                `;
+            },
+
+            async profileSelection() {
+                try {
+                    const users = await fetch('/api/profiles').then(r => r.json());
+                    
+                    let cards = '';
+                    users.forEach(function(u) {
+                        const name = (u.name || u.username || 'مستخدم').replace(/'/g, "\\'");
+                        cards += '<div onclick="showPasswordPrompt(\'' + u.id + '\', \'' + name + '\')" class="group cursor-pointer flex flex-col items-center" id="user-card-' + u.id + '">'
+                            + '<div class="w-32 h-32 md:w-44 md:h-44 rounded-3xl overflow-hidden border-4 border-transparent group-hover:border-primary group-hover:scale-110 transition-all duration-500 shadow-2xl relative">'
+                            + '<img src="' + (u.avatar || '/uploads/others/default_avatar.jpg') + '" class="w-full h-full object-cover">'
+                            + '<div class="absolute inset-0 bg-black/20 group-hover:bg-transparent transition-colors"></div>'
+                            + '</div>'
+                            + '<h3 class="mt-6 text-xl font-black text-gray-400 group-hover:text-white transition-colors">' + (u.name || u.username || 'مستخدم') + '</h3>'
+                            + '</div>';
+                    });
+
+                    return '<div class="min-h-screen flex flex-col items-center justify-center bg-obsidian px-6">'
+                        + '<div class="text-center mb-16">'
+                        + '<h1 class="text-4xl md:text-6xl font-black text-white mb-4 tracking-tighter">من يشاهد الآن؟</h1>'
+                        + '<p class="text-gray-500 text-lg">اختر ملفك الشخصي للمتابعة</p>'
+                        + '</div>'
+                        + '<div class="flex flex-wrap justify-center gap-8 md:gap-12 max-w-5xl">'
+                        + cards
+                        + '</div>'
+                        + '<div id="password-prompt" class="hidden mt-12 w-full max-w-sm">'
+                        + '<div class="bg-surface border border-white/10 rounded-2xl p-6 shadow-2xl">'
+                        + '<h3 id="password-prompt-name" class="text-xl font-black text-white text-center mb-4"></h3>'
+                        + '<form onsubmit="handleProfileLogin(event)">'
+                        + '<input type="password" id="profile-password" placeholder="أدخل كلمة المرور" autofocus class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-primary text-right mb-4">'
+                        + '<input type="hidden" id="profile-user-id">'
+                        + '<button type="submit" class="w-full bg-primary text-black font-black py-3 rounded-xl hover:bg-white transition-colors shadow-[0_0_15px_rgba(27,214,142,0.3)]">دخول</button>'
+                        + '<div id="profile-login-error" class="text-red-500 text-sm font-bold mt-3 text-center hidden"></div>'
+                        + '</form>'
+                        + '</div>'
+                        + '</div>'
+                        + '</div>';
+                } catch (e) {
+                    return '<div class="p-20 text-center text-red-500 font-bold">خطأ في تحميل المستخدمين</div>';
+                }
             }
         };
 
-        // ==================== دوال خاصة باختيار الملف الشخصي ====================
-
-        async function selectProfile(profileId) {
-            try {
-                const res = await fetch(`${API_BASE}/auth/select-profile`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ profileId, userId: currentSession?.userId })
-                });
-                const data = await res.json();
-                if (data.success) {
-                    saveSession(data.session);
-                    Router.go('home');
-                } else {
-                    showAlert(data.error, 'error');
-                }
-            } catch (e) {
-                showAlert('حدث خطأ', 'error');
-            }
-        }
 
         // ==========================================
         // 4. محرك المشغل المتطور (Netflix Experience)
@@ -3377,18 +3785,17 @@
                             sugEl.innerHTML = items.map(m => `
                         <div onclick="Router.go('details', {id: '${m.id}'})" 
                              class="cursor-pointer group transform transition-all hover:scale-105">
-                            <div class="aspect-[2/3] rounded-xl overflow-hidden shadow-lg">
-                                <img src="${m.poster}" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500">
-                            </div>
-                            <h4 class="text-xs font-bold mt-2 text-center truncate group-hover:text-primary">${m.title}</h4>
-                            <p class="text-[10px] text-gray-500 text-center">${m.year}</p>
-                        </div>
-                    `).join('');
+                             <div class="aspect-[2/3] rounded-xl overflow-hidden shadow-lg">
+                                 <img src="${m.poster}" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500">
+                             </div>
+                             <h4 class="text-xs font-bold mt-2 text-center truncate group-hover:text-primary">${m.title}</h4>
+                             <p class="text-[10px] text-gray-500 text-center">${m.year}</p>
+                         </div>
+                     `).join('');
                         }
                     });
-            }
+            },
         };
-
 
         let lastScrollTop = 0;
         const mobileNav = document.getElementById('mobile-nav');
@@ -3412,7 +3819,131 @@
 
 
 
-        window.onload = () => Router.go('home');
+        // ==================== Account Management Functions ====================
+        window.switchTab = function(tabId) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            const target = document.getElementById(`tab-${tabId}`);
+            if (target) target.classList.remove('hidden');
+            
+            document.querySelectorAll('.account-tab').forEach(el => {
+                el.classList.remove('active');
+                el.classList.add('text-gray-500', 'hover:bg-white/5');
+            });
+            const activeTab = event.currentTarget;
+            if (activeTab && activeTab.classList) {
+                activeTab.classList.add('active');
+                activeTab.classList.remove('text-gray-500', 'hover:bg-white/5');
+            }
+        };
+
+        window.toggleAvatarMenu = function(e) {
+            e.stopPropagation();
+            const menu = document.getElementById('avatar-menu');
+            menu.classList.toggle('hidden');
+            
+            const closer = () => {
+                menu.classList.add('hidden');
+                document.removeEventListener('click', closer);
+            };
+            document.addEventListener('click', closer);
+        };
+
+        window.handleAvatarUpload = function(input) {
+            if (input.files && input.files[0]) {
+                const reader = new FileReader();
+                reader.onload = async function(e) {
+                    const avatarData = e.target.result;
+                    document.getElementById('profile-preview-large').src = avatarData;
+                    
+                    try {
+                        const res = await fetch('/api/me/update', {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ userId: currentSession.userId, avatar: avatarData })
+                        });
+                        const data = await res.json();
+                        if (data.success) {
+                            currentSession.avatar = avatarData;
+                            saveSession(currentSession);
+                            showAlert('✅ تم تحديث الصورة الشخصية');
+                            document.querySelectorAll('.user-avatar-display').forEach(el => el.src = avatarData);
+                        }
+                    } catch (err) { showAlert('❌ خطأ في الرفع', 'error'); }
+                };
+                reader.readAsDataURL(input.files[0]);
+            }
+        };
+
+        window.deleteAvatar = async function() {
+            const defaultAvatar = '/uploads/users/default.png';
+            document.getElementById('profile-preview-large').src = defaultAvatar;
+            try {
+                const res = await fetch('/api/me/update', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userId: currentSession.userId, avatar: defaultAvatar })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    currentSession.avatar = defaultAvatar;
+                    saveSession(currentSession);
+                    showAlert('🗑️ تم حذف الصورة الشخصية');
+                    document.querySelectorAll('.user-avatar-display').forEach(el => el.src = defaultAvatar);
+                }
+            } catch (err) { showAlert('❌ خطأ في الحذف', 'error'); }
+        };
+
+        window.saveInlineName = async function(el) {
+            const newName = el.textContent.trim();
+            if (!newName || newName === (currentSession.name || currentSession.username)) return;
+
+            try {
+                const res = await fetch('/api/me/update', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userId: currentSession.userId, name: newName })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    currentSession.name = newName;
+                    saveSession(currentSession);
+                    showAlert('✅ تم تحديث الاسم بنجاح');
+                    document.querySelectorAll('.user-name-display').forEach(item => item.textContent = newName);
+                }
+            } catch (err) { showAlert('❌ خطأ في حفظ الاسم', 'error'); }
+        };
+
+        window.handlePasswordUpdate = async function(e) {
+            e.preventDefault();
+            const password = document.getElementById('update-password').value;
+            const confirm = document.getElementById('confirm-password').value;
+
+            if (!password || password !== confirm) {
+                return showAlert('❌ كلمات المرور غير متطابقة', 'error');
+            }
+            if (password.length < 4) {
+                return showAlert('❌ كلمة المرور قصيرة جداً', 'error');
+            }
+
+            try {
+                const res = await fetch('/api/me/update', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userId: currentSession.userId, password })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    showAlert('✅ تم تحديث كلمة المرور بنجاح');
+                    e.target.reset();
+                } else {
+                    showAlert('❌ حدث خطأ: ' + data.error, 'error');
+                }
+            } catch (err) {
+                showAlert('❌ خطأ في الاتصال بالسيرفر', 'error');
+            }
+        };
+
+        // window.onload removed to avoid conflict with DOMContentLoaded
     </script>
 
     <!-- Login Modal -->

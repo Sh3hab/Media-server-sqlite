@@ -210,9 +210,11 @@ const initDatabase = () => {
                 group_ids TEXT,
                 blocked_genres TEXT,
                 blocked_titles TEXT,
+                pin TEXT,
                 createdAt TEXT,
                 FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE
             )`);
+            db.run(`ALTER TABLE profiles ADD COLUMN pin TEXT`, (err) => {});
 
             // Age Groups Table
             db.run(`CREATE TABLE IF NOT EXISTS age_groups (

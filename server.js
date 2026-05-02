@@ -1900,29 +1900,112 @@ app.post('/api/auth/login', async (req, res) => {
             return res.status(401).json({ error: 'اسم المستخدم أو كلمة المرور غير صحيحة' });
         }
         await db.run('UPDATE users SET lastActive = ? WHERE id = ?', [new Date().toISOString(), user.id]);
-        const profiles = await db.all('SELECT id, name, avatar, isDefault FROM profiles WHERE userId = ?', [user.id]);
+        let profiles = await db.all('SELECT id, name, avatar, isDefault FROM profiles WHERE userId = ?', [user.id]);
+        
+        // إذا لم يكن هناك بروفايلات، قم بإنشاء واحد افتراضي
+        if (profiles.length === 0) {
+            const profileId = 'profile_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+            await db.run(`INSERT INTO profiles (id, userId, name, avatar, isDefault, createdAt) VALUES (?, ?, ?, ?, ?, ?)`,
+                [profileId, user.id, user.name || user.username, '/uploads/avatars/default.png', 1, new Date().toISOString()]);
+            profiles = [{ id: profileId, name: user.name || user.username, avatar: '/uploads/avatars/default.png', isDefault: 1 }];
+        }
+
         res.json({ success: true, user, profiles });
     } catch (error) {
         res.status(500).json({ error: 'حدث خطأ في تسجيل الدخول' });
     }
 });
+
+// تحديث بيانات المستخدم الحالي
+app.put('/api/me/update', async (req, res) => {
+    try {
+        const { userId, name, password, avatar } = req.body;
+        if (!userId) return res.status(400).json({ error: 'User ID is required' });
+
+        const user = await db.get('SELECT * FROM users WHERE id = ?', [userId]);
+        if (!user) return res.status(404).json({ error: 'المستخدم غير موجود' });
+
+        const newName = name !== undefined ? name : user.name;
+        const newAvatar = avatar !== undefined ? avatar : user.avatar;
+        const newPassword = password !== undefined ? password : user.password;
+
+        await db.run('UPDATE users SET name = ?, password = ?, avatar = ? WHERE id = ?', 
+            [newName, newPassword, newAvatar, userId]);
+
+        // تحديث البروفايل المرتبط أيضاً إذا كان هو البروفايل الأساسي
+        await db.run('UPDATE profiles SET name = ?, avatar = ? WHERE userId = ? AND isDefault = 1', [newName, newAvatar, userId]);
+
+        res.json({ success: true, message: 'تم تحديث البيانات بنجاح' });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+
 // اختيار ملف شخصي
 app.post('/api/auth/select-profile', async (req, res) => {
     try {
-        const { profileId, userId } = req.body;
-        const profile = await db.get(`SELECT p.*, u.username FROM profiles p JOIN users u ON p.userId = u.id WHERE p.id = ? AND u.id = ?`, [profileId, userId]);
+        const { profileId, userId, pin } = req.body;
+        console.log('[DEBUG] Select Profile Attempt:', { profileId, userId });
+        
+        // جلب البروفايل
+        const profile = await db.get(`SELECT * FROM profiles WHERE id = ?`, [profileId]);
+        
         if (!profile) {
-            return res.status(404).json({ error: 'الملف الشخصي غير موجود' });
+            console.error('[ERROR] Profile NOT found:', profileId);
+            // تشخيص: عرض جميع البروفايلات لهذا المستخدم لمعرفة المشكلة
+            const allUserProfiles = await db.all('SELECT id FROM profiles WHERE userId = ?', [userId]);
+            console.log('[DIAGNOSTIC] All IDs in DB for this user:', allUserProfiles.map(p => p.id));
+            return res.status(404).json({ error: 'الملف الشخصي غير موجود في قاعدة البيانات' });
         }
-        res.json({ success: true, session: { userId: profile.userId, username: profile.username, profileId: profile.id, profileName: profile.name, profileAvatar: profile.avatar, restrictions: JSON.parse(profile.restrictions || '[]'), ageLimit: profile.ageLimit || 0 } });
+
+        // تحقق من الرمز السري إذا كان موجوداً في قاعدة البيانات
+        if (profile.pin && profile.pin !== pin) {
+            return res.status(401).json({ error: 'الرمز السري غير صحيح' });
+        }
+
+        if (profile.userId !== userId) {
+            console.error('[ERROR] Profile userId mismatch:', { profileUserId: profile.userId, sessionUserId: userId });
+            return res.status(403).json({ error: 'هذا الملف الشخصي لا ينتمي لهذا الحساب' });
+        }
+
+        const user = await db.get('SELECT username FROM users WHERE id = ?', [userId]);
+        
+        res.json({ 
+            success: true, 
+            session: { 
+                userId: profile.userId, 
+                username: user?.username || 'user', 
+                profileId: profile.id, 
+                name: profile.name, 
+                avatar: profile.avatar, 
+                profileName: profile.name, 
+                profileAvatar: profile.avatar, 
+                restrictions: JSON.parse(profile.restrictions || '[]'), 
+                ageLimit: profile.ageLimit || 0 
+            } 
+        });
     } catch (error) {
-        res.status(500).json({ error: 'حدث خطأ' });
+        console.error('[CRITICAL] select-profile error:', error);
+        res.status(500).json({ error: 'حدث خطأ داخلي في السيرفر' });
     }
 });
 // جلب جميع الملفات الشخصية لمستخدم
 app.get('/api/users/:userId/profiles', async (req, res) => {
     try {
-        const profiles = await db.all('SELECT id, name, avatar, isDefault, ageLimit FROM profiles WHERE userId = ?', [req.params.userId]);
+        let profiles = await db.all('SELECT id, name, avatar, isDefault, ageLimit FROM profiles WHERE userId = ?', [req.params.userId]);
+        
+        // التأكد من وجود بروفايل واحد على الأقل
+        if (profiles.length === 0) {
+            const user = await db.get('SELECT username, name FROM users WHERE id = ?', [req.params.userId]);
+            if (user) {
+                const profileId = 'profile_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+                await db.run(`INSERT INTO profiles (id, userId, name, avatar, isDefault, createdAt) VALUES (?, ?, ?, ?, ?, ?)`,
+                    [profileId, req.params.userId, user.name || user.username, '/uploads/avatars/default.png', 1, new Date().toISOString()]);
+                profiles = await db.all('SELECT id, name, avatar, isDefault, ageLimit FROM profiles WHERE userId = ?', [req.params.userId]);
+            }
+        }
+        
         res.json(profiles);
     } catch (error) {
         res.status(500).json({ error: 'خطأ في جلب الملفات الشخصية' });
@@ -2330,17 +2413,17 @@ app.delete('/api/profiles/:id', authenticateAdmin, async (req, res) => {
     }
 });
 // جلب سجل المشاهدات لمستخدم
-app.get('/api/history/:userId', authenticateAdmin, async (req, res) => {
-    try {
-        const history = await db.all('SELECT * FROM watch_history WHERE userId = ? ORDER BY watchedAt DESC LIMIT 100', [req.params.userId]);
-        res.json(history);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
+
 app.get('/api/history/:userId', async (req, res) => {
     try {
-        const history = await db.all('SELECT * FROM watch_history WHERE userId = ? ORDER BY watchedAt DESC', [req.params.userId]);
+        const history = await db.all(`
+            SELECT h.*, s.title, s.poster, s.backdrop, s.isMovie
+            FROM watch_history h
+            JOIN series s ON h.contentId = s.id
+            WHERE h.userId = ?
+            ORDER BY h.watchedAt DESC
+            LIMIT 50
+        `, [req.params.userId]);
         res.json(history);
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -2359,6 +2442,52 @@ app.post('/api/history', async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 });
+
+// --- Watchlist APIs ---
+app.post('/api/watchlist/add', async (req, res) => {
+    try {
+        const { userId, contentId, contentType } = req.body;
+        if (!userId || !contentId) return res.status(400).json({ error: 'userId and contentId required' });
+        
+        const id = 'wl_' + Date.now();
+        const addedAt = new Date().toISOString();
+        
+        // Check if already in watchlist
+        const existing = await db.get('SELECT * FROM watchlist WHERE userId = ? AND contentId = ?', [userId, contentId]);
+        if (existing) return res.json({ success: true, message: 'Already in watchlist' });
+
+        await db.run(`INSERT INTO watchlist (id, userId, contentId, contentType, addedAt) VALUES (?, ?, ?, ?, ?)`,
+            [id, userId, contentId, contentType || 'movie', addedAt]);
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.get('/api/watchlist/:userId', async (req, res) => {
+    try {
+        const watchlist = await db.all(`
+            SELECT w.*, s.title, s.poster, s.rating, s.year, s.isMovie
+            FROM watchlist w
+            JOIN series s ON w.contentId = s.id
+            WHERE w.userId = ?
+            ORDER BY w.addedAt DESC
+        `, [req.params.userId]);
+        res.json(watchlist);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.post('/api/like/:contentId', async (req, res) => {
+    try {
+        await db.run('UPDATE series SET likes = likes + 1 WHERE id = ?', [req.params.contentId]);
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // Helper for Content Filtering
 async function filterContentForUser(contentArray, userId) {
     if (!userId) return contentArray;
@@ -2423,6 +2552,15 @@ async function filterContentForUser(contentArray, userId) {
         return true;
     });
 }
+// Catch-all route لدعم التوجيه من طرف العميل (History API)
+app.use((req, res, next) => {
+    const excludedPrefixes = ['/api', '/uploads', '/videojs', '/fontawesome', '/css', '/admin', '/srt', '/404'];
+    if (req.method !== 'GET' || excludedPrefixes.some(p => req.path.startsWith(p)) || req.path.includes('.')) {
+        return next();
+    }
+    res.sendFile(path.join(__dirname, 'index.html'));
+});
+
 // 404 & Error Handlers
 app.use((req, res) => {
     res.status(404).sendFile(path.join(__dirname, '404.html'));
@@ -2479,6 +2617,7 @@ process.on('uncaughtException', (err) => {
     console.error('CRITICAL: Uncaught Exception:', err);
     // Optionally keep it running or exit
 });
+
 
 // بدء السيرفر
 try {
