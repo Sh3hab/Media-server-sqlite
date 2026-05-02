@@ -2654,6 +2654,16 @@ process.on('uncaughtException', (err) => {
 });
 
 
+// --- SPA Routing ---
+// توجيه جميع المسارات غير المعرفة بـ API إلى index.html لدعم تطبيقات الصفحة الواحدة (SPA)
+app.use((req, res, next) => {
+    // استثناء مسارات الـ API والملفات الثابتة التي قد تكون صور أو سكربتات
+    if (req.path.startsWith('/api') || req.path.includes('.')) {
+        return next();
+    }
+    res.sendFile(path.join(__dirname, 'index.html'));
+});
+
 // بدء السيرفر
 try {
     app.listen(PORT, () => {

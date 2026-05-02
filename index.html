@@ -1788,7 +1788,7 @@
                                 </div>
                             </div>
                             <div class="absolute top-2 right-2 bg-black/60 backdrop-blur px-2 py-0.5 rounded text-[10px] font-black border border-white/10">
-                                <i class="fa-solid fa-star text-yellow-500 mr-1"></i>${item.rating || '0.0'}
+                                <i class="fa-solid fa-star text-yellow-500 mr-1"></i>${parseFloat(item.rating || 0).toFixed(1)}
                             </div>
                             ${item.tags ? `
                             <div class="absolute top-2 left-2 bg-black/60 backdrop-blur px-2 py-0.5 rounded text-[10px] font-black border border-white/10 text-orange-400">
@@ -2321,7 +2321,7 @@
                                     <div class="flex flex-row-reverse gap-3 mb-8 items-center justify-center lg:justify-start flex-wrap">
                                         <span class="px-4 py-1.5 bg-primary text-black text-[11px] font-black rounded-lg shadow-[0_0_20px_rgba(27,214,142,0.4)]">${item.isMovie ? 'فيلم' : 'مسلسل'}</span>
                                         <span class="px-4 py-1.5 bg-white/10 text-white border border-white/10 text-[11px] font-black rounded-lg backdrop-blur-md">${item.year}</span>
-                                        <span class="px-4 py-1.5 bg-white/10 text-primary border border-white/10 text-[11px] font-black rounded-lg backdrop-blur-md italic">★ ${item.rating}</span>
+                                        <span class="px-4 py-1.5 bg-white/10 text-primary border border-white/10 text-[11px] font-black rounded-lg backdrop-blur-md italic">★ ${parseFloat(item.rating).toFixed(1)}</span>
                                     </div>
 
                                     ${item.collectionInfo ? `
@@ -2517,6 +2517,7 @@
             async player(id, type) {
                 let info = {};
                 let nextEps = [];
+                let seasons = [];
                 let series = null;
                 if (type === 'movie') {
                     const item = await fetch(`${API_BASE}/series/${id}`).then(r => r.json());
@@ -2537,20 +2538,45 @@
                         rating: series.rating,
                         year: series.year
                     };
-                    nextEps = await fetch(`${API_BASE}/episodes?seriesId=${ep.seriesId}&seasonId=${ep.seasonId}`).then(r => r.json());
-                    nextEps = nextEps.filter(e => e.episodeNumber > info.episodeNumber);
+                    // جلب الحلقات والمواسم بشكل أكثر متانة
+                    let allEps = [];
+                    try {
+                        const epsRes = await fetch(`${API_BASE}/episodes?seriesId=${ep.seriesId}${ep.seasonId ? `&seasonId=${ep.seasonId}` : ''}`);
+                        allEps = await epsRes.json();
+                    } catch (e) { console.error('Failed to fetch episodes', e); }
+                    
+                    nextEps = allEps.filter(e => e.episodeNumber > info.episodeNumber);
+                    
+                    // إذا لم تكن هناك حلقات تالية في الموسم الحالي، نبحث في الموسم التالي
+                    if (nextEps.length === 0 && series.seasons && series.seasons.length > 0) {
+                        const currentSeason = series.seasons.find(s => s.id === ep.seasonId);
+                        if (currentSeason) {
+                            const nextSeason = series.seasons.find(s => s.seasonNumber === currentSeason.seasonNumber + 1);
+                            if (nextSeason) {
+                                try {
+                                    const nextRes = await fetch(`${API_BASE}/episodes?seriesId=${ep.seriesId}&seasonId=${nextSeason.id}`);
+                                    const nextSeasonEps = await nextRes.json();
+                                    nextEps = nextSeasonEps.slice(0, 5); // عرض أول 5 حلقات من الموسم القادم
+                                } catch (e) { }
+                            }
+                        }
+                    }
+                    
+                    if (series.seasons) {
+                        seasons = series.seasons.filter(s => s.id !== ep.seasonId);
+                    }
                 }
 
                 return `
         <div class="min-h-screen bg-[#020202] text-right" data-vid="${info.id}" data-series="${info.seriesId || ''}" data-season="${info.seasonId || ''}" data-episode="${info.episodeNumber || ''}">
             
-            <div class="max-w-[1920px] mx-auto flex flex-col lg:flex-row-reverse lg:h-screen overflow-hidden">
+            <div class="max-w-[1920px] mx-auto flex flex-col lg:flex-row lg:h-screen overflow-hidden">
                 
-                <!-- Right Side (65% Width): Player & Meta -->
-                <div class="w-full lg:w-[65%] flex flex-col h-full bg-black lg:border-l border-white/5 overflow-y-auto no-scrollbar">
+                <!-- Left Side (65% Width): Player & Meta -->
+                <div class="w-full lg:w-[65%] flex flex-col h-full bg-black lg:border-r border-white/5 overflow-y-auto no-scrollbar">
                     
                     <!-- Cinematic Player -->
-                    <div id="p-container" class="ultra-player-container relative w-full aspect-video bg-black group overflow-hidden shrink-0 shadow-[0_20px_80px_rgba(0,0,0,0.9)]">
+                    <div id="p-container" class="ultra-player-container relative w-full aspect-video bg-black group overflow-hidden shrink-0 shadow-[0_20px_100px_rgba(0,0,0,1)]">
                         <div class="custom-player-ui absolute inset-0 z-[110] pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-300">
                             <div class="player-top-bar absolute top-0 left-0 right-0 h-24 bg-gradient-to-b from-black/90 to-transparent flex items-center justify-between px-10 pointer-events-auto">
                                 <button onclick="window.history.back()" class="bottom-ctrl-btn text-2xl">
@@ -2567,7 +2593,7 @@
                                 <button class="center-btn w-14 h-14 md:w-20 md:h-20 bg-black/40 backdrop-blur-2xl rounded-full border border-white/10 flex items-center justify-center text-white text-xl md:text-2xl hover:bg-primary hover:text-black transition-all" onclick="PlayerEngine.skipBackward()">
                                     <i class="fa-solid fa-rotate-left"></i>
                                 </button>
-                                <button class="center-btn w-16 h-16 md:w-28 md:h-28 bg-primary text-black rounded-full shadow-[0_0_60px_rgba(27,214,142,0.4)] flex items-center justify-center text-4xl md:text-5xl hover:scale-110 transition-all active:scale-95" onclick="PlayerEngine.playPause()">
+                                <button class="center-btn w-16 h-16 md:w-28 md:h-28 bg-primary text-black rounded-full shadow-[0_0_60px_rgba(27,214,142,0.6)] flex items-center justify-center text-4xl md:text-5xl hover:scale-110 transition-all active:scale-95" onclick="PlayerEngine.playPause()">
                                     <i id="center-play-icon" class="fa-solid fa-play ml-2"></i>
                                 </button>
                                 <button class="center-btn w-14 h-14 md:w-20 md:h-20 bg-black/40 backdrop-blur-2xl rounded-full border border-white/10 flex items-center justify-center text-white text-xl md:text-2xl hover:bg-primary hover:text-black transition-all" onclick="PlayerEngine.skipForward()">
@@ -2614,26 +2640,26 @@
                     </div>
 
                     <!-- Meta Content -->
-                    <div class="p-8 md:p-14">
+                    <div class="p-8 md:p-14 bg-gradient-to-b from-[#050505] to-black">
                         <div class="flex flex-row-reverse justify-between items-start gap-10 mb-12">
                             <div class="flex-1">
                                 <div class="flex flex-row-reverse gap-3 mb-6 items-center">
                                     <span class="px-4 py-1.5 bg-primary/20 text-primary border border-primary/20 text-xs font-black rounded-lg uppercase tracking-wider">${type === 'movie' ? 'فيلم' : 'مسلسل'}</span>
                                     <span class="px-4 py-1.5 bg-white/5 text-gray-400 border border-white/10 text-xs font-black rounded-lg">${info.year || ''}</span>
-                                    <span class="px-4 py-1.5 bg-white/5 text-yellow-500 border border-white/10 text-xs font-black rounded-lg italic">⭐ ${info.rating || ''}</span>
+                                    <span class="px-4 py-1.5 bg-white/5 text-yellow-500 border border-white/10 text-xs font-black rounded-lg">⭐ ${parseFloat(info.rating).toFixed(1)}</span>
                                 </div>
                                 <h1 class="text-4xl md:text-6xl font-black text-white mb-6 tracking-tighter leading-tight">${info.title}</h1>
-                                <p class="text-primary font-black text-xl mb-8">${info.sub}</p>
+                                <p class="text-primary font-black text-xl mb-8 opacity-80">${info.sub}</p>
                                 <p class="text-gray-400 text-xl leading-relaxed opacity-70 max-w-5xl">${info.desc || 'لا يوجد وصف متاح لهذا العمل.'}</p>
                             </div>
                             <div class="flex flex-col gap-4 shrink-0">
-                                <button onclick="PlayerEngine.like()" class="w-16 h-16 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center hover:bg-primary hover:text-black transition-all active:scale-90 group">
+                                <button onclick="PlayerEngine.like()" class="w-16 h-16 rounded-3xl bg-white/5 border border-white/10 flex items-center justify-center hover:bg-primary hover:text-black transition-all active:scale-90 group shadow-xl">
                                     <i class="fa-regular fa-thumbs-up text-2xl group-hover:scale-110"></i>
                                 </button>
-                                <button onclick="PlayerEngine.share()" class="w-16 h-16 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center hover:bg-white hover:text-black transition-all active:scale-90 group">
+                                <button onclick="PlayerEngine.share()" class="w-16 h-16 rounded-3xl bg-white/5 border border-white/10 flex items-center justify-center hover:bg-white hover:text-black transition-all active:scale-90 group shadow-xl">
                                     <i class="fa-solid fa-share-nodes text-2xl group-hover:scale-110"></i>
                                 </button>
-                                <button onclick="PlayerEngine.addToWatchlist()" class="w-16 h-16 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center hover:bg-white hover:text-black transition-all active:scale-90 group">
+                                <button onclick="PlayerEngine.addToWatchlist()" class="w-16 h-16 rounded-3xl bg-white/5 border border-white/10 flex items-center justify-center hover:bg-white hover:text-black transition-all active:scale-90 group shadow-xl">
                                     <i class="fa-regular fa-bookmark text-2xl group-hover:scale-110"></i>
                                 </button>
                             </div>
@@ -2641,43 +2667,123 @@
                     </div>
                 </div>
 
-                <!-- Left Side (35% Width): Sidebar Content -->
-                <div class="w-full lg:w-[35%] h-full bg-[#050505] overflow-y-auto no-scrollbar p-8 lg:p-12 order-1 lg:order-2">
-                    ${type === 'series' ? `
-                        <!-- Series Sidebar: Playlist -->
-                        <div class="flex items-center justify-between mb-10 border-r-4 border-primary pr-4">
-                            <h3 class="text-2xl font-black text-white italic">الحلقات القادمة</h3>
-                            <span class="text-xs bg-white/5 text-gray-500 px-3 py-1 rounded-full font-black">${nextEps.length} حلقة متبقية</span>
-                        </div>
-                        <div class="space-y-5">
-                            ${nextEps.map(e => `
-                                <div onclick="Router.go('player', {id: '${e.id}', type: 'episode'})" 
-                                    class="group flex flex-row-reverse items-center gap-6 p-4 bg-white/5 rounded-[2rem] border border-white/5 hover:bg-primary/10 hover:border-primary/20 transition-all cursor-pointer">
-                                    <div class="w-32 aspect-video rounded-2xl overflow-hidden shrink-0 relative shadow-2xl">
-                                        <img src="${e.thumbnail || info.poster}" class="w-full h-full object-cover group-hover:scale-110 transition-transform">
-                                        <div class="absolute inset-0 bg-primary/10 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                <!-- Right Side (35% Width): Sidebar Content -->
+                <div class="w-full lg:w-[35%] h-full bg-[#050505] overflow-y-auto no-scrollbar p-8 lg:p-12 order-2 lg:order-2">
+                    ${type === 'episode' ? `
+                        <!-- Series Sidebar: Playlist & Seasons -->
+                        <div class="space-y-12">
+                            <!-- Dynamic Season Episodes -->
+                            <div id="active-season-section" class="hidden space-y-8 animate-fade-in">
+                                <div class="flex items-center justify-between border-r-4 border-primary pr-4">
+                                    <h3 id="active-season-title" class="text-2xl font-black text-white">حلقات الموسم</h3>
+                                    <button onclick="document.getElementById('active-season-section').classList.add('hidden')" class="text-gray-500 hover:text-white transition-colors">
+                                        <i class="fa-solid fa-xmark text-xl"></i>
+                                    </button>
+                                </div>
+                                <div id="active-season-episodes" class="space-y-4 max-h-[60vh] overflow-y-auto no-scrollbar pr-2">
+                                    <!-- Populated dynamically -->
+                                </div>
+                            </div>
+
+                            ${nextEps.length > 0 ? `
+                                <div>
+                                    <div class="flex items-center justify-between mb-8 border-r-4 border-primary pr-4">
+                                        <h3 class="text-2xl font-black text-white">الحلقات القادمة</h3>
                                     </div>
-                                    <div class="flex-1">
-                                        <div class="text-[10px] text-primary font-black mb-1 uppercase tracking-widest">حلقة ${e.episodeNumber}</div>
-                                        <div class="font-bold text-lg text-white line-clamp-1 group-hover:text-primary transition-colors">${e.title}</div>
+                                    <div class="space-y-4">
+                                        ${nextEps.map(e => `
+                                            <div onclick="Router.go('player', {id: '${e.id}', type: 'episode'})" 
+                                                class="group flex flex-row-reverse items-center gap-5 p-4 bg-white/5 rounded-3xl border border-white/5 hover:bg-primary/10 hover:border-primary/20 transition-all cursor-pointer">
+                                                <div class="w-28 aspect-video rounded-2xl overflow-hidden shrink-0 relative shadow-lg">
+                                                    <img src="${e.thumbnail || info.poster}" class="w-full h-full object-cover group-hover:scale-110 transition-transform">
+                                                </div>
+                                                <div class="flex-1">
+                                                    <div class="text-[10px] text-primary font-black mb-1">حلقة ${e.episodeNumber}</div>
+                                                    <div class="font-bold text-sm text-white line-clamp-1 group-hover:text-primary transition-colors">${e.title}</div>
+                                                </div>
+                                            </div>
+                                        `).join('')}
                                     </div>
                                 </div>
-                            `).join('')}
+                            ` : ''}
+
+                            ${seasons.length > 0 ? `
+                                <div>
+                                    <div class="flex items-center justify-between mb-8 border-r-4 border-accent pr-4">
+                                        <h3 class="text-2xl font-black text-white">المواسم الأخرى</h3>
+                                    </div>
+                                    <div class="grid grid-cols-1 gap-4">
+                                        ${seasons.map(s => `
+                                            <div onclick="Views.loadSeasonEpisodes('${s.id}', '${info.seriesId}', '${s.title}')" 
+                                                class="flex flex-row-reverse items-center gap-5 p-4 bg-white/5 rounded-3xl border border-white/5 hover:bg-accent/10 transition-all cursor-pointer group">
+                                                <div class="w-16 aspect-[2/3] rounded-xl overflow-hidden shrink-0">
+                                                    <img src="${info.poster}" class="w-full h-full object-cover group-hover:scale-110">
+                                                </div>
+                                                <div class="flex-1">
+                                                    <div class="text-[10px] text-accent font-black mb-1">${s.seriesTitle || info.title}</div>
+                                                    <div class="font-black text-white group-hover:text-accent">${s.title || `الموسم ${s.seasonNumber}`}</div>
+                                                    <div class="flex items-center gap-3 mt-1">
+                                                        <span class="text-[10px] text-gray-400 border border-white/10 px-2 py-0.5 rounded-md">${s.episodeCount || 0} حلقة</span>
+                                                        <span class="text-[10px] text-gray-500">${s.year || ''}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        `).join('')}
+                                    </div>
+                                </div>
+                            ` : ''}
                         </div>
                     ` : `
-                        <!-- Movie Sidebar: 15 Algorithmic Suggestions -->
+                        <!-- Movie Sidebar: Top Trending / Algorithmic -->
                         <div class="mb-10 border-r-4 border-primary pr-4">
-                            <h3 class="text-2xl font-black text-white italic">اقتراحات ذكية لك</h3>
-                            <p class="text-gray-500 text-xs font-black mt-1 uppercase tracking-widest">بناءً على اهتماماتك</p>
+                            <h3 class="text-2xl font-black text-white">الأكثر مشاهدة</h3>
+                            <p class="text-gray-500 text-xs font-black mt-1 uppercase tracking-widest">مختارات رائجة الآن</p>
                         </div>
-                        <div id="player-smart-sug" class="grid grid-cols-2 gap-4">
-                            <!-- Cards will load via algorithm -->
+                        <div id="player-trending-sug" class="grid grid-cols-2 gap-4">
+                            <!-- Cards will load here -->
                         </div>
                     `}
                 </div>
 
             </div>
         </div>`;
+            },
+
+            // دالة جلب حلقات موسم معين وعرضها في شريط المشغل الجانبي
+            async loadSeasonEpisodes(seasonId, seriesId, seasonTitle) {
+                const section = document.getElementById('active-season-section');
+                const titleEl = document.getElementById('active-season-title');
+                const container = document.getElementById('active-season-episodes');
+                
+                if (!section || !container) return;
+
+                titleEl.textContent = seasonTitle;
+                container.innerHTML = `<div class="flex items-center justify-center py-10"><i class="fa-solid fa-circle-notch fa-spin text-primary text-2xl"></i></div>`;
+                section.classList.remove('hidden');
+                section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+                try {
+                    const res = await fetch(`${API_BASE}/episodes?seriesId=${seriesId}&seasonId=${seasonId}`);
+                    const eps = await res.json();
+                    
+                    container.innerHTML = eps.map(e => `
+                        <div onclick="Router.go('player', {id: '${e.id}', type: 'episode'})" 
+                            class="group flex flex-row-reverse items-center gap-4 p-3 bg-white/5 rounded-2xl border border-white/5 hover:bg-primary/10 hover:border-primary/20 transition-all cursor-pointer animate-fade-in">
+                            <div class="w-24 aspect-video rounded-xl overflow-hidden shrink-0 relative shadow-lg">
+                                <img src="${e.thumbnail || '/uploads/posters/default.jpg'}" class="w-full h-full object-cover group-hover:scale-110 transition-transform">
+                                <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                                    <i class="fa-solid fa-play text-white text-[10px]"></i>
+                                </div>
+                            </div>
+                            <div class="flex-1 text-right">
+                                <div class="text-[9px] text-primary font-black mb-0.5 uppercase tracking-tighter">حلقة ${e.episodeNumber}</div>
+                                <div class="font-bold text-[13px] text-white line-clamp-1 group-hover:text-primary transition-colors">${e.title}</div>
+                            </div>
+                        </div>
+                    `).join('');
+                } catch (e) {
+                    container.innerHTML = `<div class="text-center text-red-500 py-4 font-bold text-sm">فشل تحميل الحلقات</div>`;
+                }
             },
 
             login() {
@@ -3188,14 +3294,22 @@
                 fetch(`${API_BASE}/series`)
                     .then(r => r.json())
                     .then(all => {
-                        // خوارزمية ذكية: تصفية العمل الحالي، ترتيب عشوائي، اختيار 15 عنصر
+                        // خوارزمية ذكية للأكثر مشاهدة: ترتيب حسب المشاهدات والتقييم + خلط عشوائي بسيط
                         const filtered = all.filter(i => i.id !== seriesId && i.id !== currentId)
-                                            .sort(() => 0.5 - Math.random())
-                                            .slice(0, 15);
+                                            .sort((a, b) => {
+                                                // الترتيب حسب المشاهدات أولاً ثم التقييم
+                                                const viewsA = a.views || 0;
+                                                const viewsB = b.views || 0;
+                                                if (viewsB !== viewsA) return viewsB - viewsA;
+                                                return (parseFloat(b.rating) || 0) - (parseFloat(a.rating) || 0);
+                                            })
+                                            .slice(0, 40) // نأخذ أفضل 40
+                                            .sort(() => 0.5 - Math.random()) // نخلطهم عشوائياً
+                                            .slice(0, 15); // نختار 15
                         
-                        const smartSug = document.getElementById('player-smart-sug');
-                        if (smartSug) {
-                            smartSug.innerHTML = filtered.map(item => UI.card(item)).join('');
+                        const trendingGrid = document.getElementById('player-trending-sug');
+                        if (trendingGrid) {
+                            trendingGrid.innerHTML = filtered.map(item => UI.card(item)).join('');
                         }
                     });
             },
