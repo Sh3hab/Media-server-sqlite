@@ -469,6 +469,27 @@ app.get('/api/series/:id', async (req, res) => {
             totalSeasons: seasons.length
         };
         const resolvedSeries = await resolveGenreNames(fullSeries);
+        
+        // جلب معلومات المجموعة إذا كان ينتمي لمجموعة
+        const collection = await db.get(`
+            SELECT c.id, c.name 
+            FROM collection_items ci
+            JOIN collections c ON ci.collectionId = c.id
+            WHERE ci.mediaId = ?
+        `, [series.id]);
+        
+        if (collection) {
+            const allItems = await db.all('SELECT mediaId FROM collection_items WHERE collectionId = ? ORDER BY orderNum ASC', [collection.id]);
+            const currentIdx = allItems.findIndex(i => i.mediaId === series.id);
+            resolvedSeries.collectionInfo = {
+                id: collection.id,
+                name: collection.name,
+                partIndex: currentIdx + 1,
+                totalParts: allItems.length,
+                remainingParts: allItems.length - (currentIdx + 1)
+            };
+        }
+
         res.json(resolvedSeries);
     } catch (error) {
         res.status(500).json({ error: 'خطأ في قراءة البيانات: ' + error.message });
@@ -1294,7 +1315,18 @@ app.get('/api/collections', async (req, res) => {
                 WHERE ci.collectionId = ?
                 ORDER BY ci.orderNum ASC
             `, [col.id]);
-            collectionsWithItems.push({ ...col, items });
+            
+            // إضافة مصفوفة البوسترات للسلايدر
+            const posters = items.map(i => i.poster).filter(p => p);
+            const backdrops = items.map(i => i.backdrop).filter(b => b);
+            
+            collectionsWithItems.push({ 
+                ...col, 
+                items, 
+                posters, 
+                backdrops,
+                itemCount: items.length 
+            });
         }
         
         res.json(collectionsWithItems);
@@ -1316,7 +1348,18 @@ app.get('/api/collections/:id', async (req, res) => {
             ORDER BY ci.orderNum ASC
         `, [col.id]);
         
-        res.json({ ...col, items });
+        // جلب الأجزاء المتاحة لكل عنصر إذا كان مسلسلاً
+        const enhancedItems = [];
+        for(const item of items) {
+            if(!item.isMovie) {
+                const episodes = await db.all('SELECT COUNT(*) as count FROM episodes WHERE seriesId = ?', [item.id]);
+                enhancedItems.push({ ...item, episodeCount: episodes[0].count });
+            } else {
+                enhancedItems.push(item);
+            }
+        }
+        
+        res.json({ ...col, items: enhancedItems, itemCount: items.length });
     } catch (error) {
         res.status(500).json({ error: 'خطأ: ' + error.message });
     }
@@ -1324,10 +1367,44 @@ app.get('/api/collections/:id', async (req, res) => {
 
 app.post('/api/collections', authenticateAdmin, async (req, res) => {
     try {
-        const { name, description, poster, backdrop, order_num } = req.body;
+        let { name, description, poster, backdrop, order_num, mediaIds } = req.body;
+        
+        // تخمين الاسم تلقائياً إذا لم يتم توفيره
+        if (!name && mediaIds && mediaIds.length > 0) {
+            const selectedMedia = await db.all(`SELECT title FROM series WHERE id IN (${mediaIds.map(() => '?').join(',')})`, mediaIds);
+            if (selectedMedia.length > 0) {
+                const titles = selectedMedia.map(m => m.title);
+                // منطق بسيط لاستخراج الجزء المشترك من العناوين
+                let common = titles[0];
+                for (let i = 1; i < titles.length; i++) {
+                    let j = 0;
+                    while (j < common.length && j < titles[i].length && common[j] === titles[i][j]) {
+                        j++;
+                    }
+                    common = common.substring(0, j);
+                }
+                name = common.trim() || 'مجموعة جديدة';
+                if (name.endsWith(':') || name.endsWith('-')) name = name.slice(0, -1).trim();
+                name = `مجموعة ${name}`;
+            }
+        }
+
         const id = 'col_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+        
+        // استخدام أول بوستر من العناصر المختارة إذا لم يتم توفير بوستر
+        if (!poster && mediaIds && mediaIds.length > 0) {
+            const firstMedia = await db.get('SELECT poster FROM series WHERE id = ?', [mediaIds[0]]);
+            poster = firstMedia ? firstMedia.poster : '';
+        }
+        if (!backdrop && mediaIds && mediaIds.length > 0) {
+            const firstMedia = await db.get('SELECT backdrop FROM series WHERE id = ?', [mediaIds[0]]);
+            backdrop = firstMedia ? firstMedia.backdrop : '';
+        }
+
         const newCol = {
-            id, name, description, 
+            id, 
+            name: name || 'مجموعة غير مسمى', 
+            description: description || '', 
             poster: poster || '', 
             backdrop: backdrop || '',
             type: 'collection',
@@ -1335,19 +1412,36 @@ app.post('/api/collections', authenticateAdmin, async (req, res) => {
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString()
         };
+        
         const keys = Object.keys(newCol);
         await db.run(`INSERT INTO collections (${keys.join(',')}) VALUES (${keys.map(() => '?').join(',')})`, Object.values(newCol));
+        
+        // إضافة العناصر للمجموعة إذا تم توفيرها
+        if (mediaIds && Array.isArray(mediaIds)) {
+            for (let i = 0; i < mediaIds.length; i++) {
+                const itemId = 'col_item_' + Date.now() + '_' + i + '_' + Math.random().toString(36).substr(2, 5);
+                await db.run(`INSERT INTO collection_items (id, collectionId, mediaId, orderNum, createdAt) VALUES (?, ?, ?, ?, ?)`,
+                    [itemId, id, mediaIds[i], i, new Date().toISOString()]);
+            }
+        }
+
         res.json({ success: true, message: 'تم إنشاء المجموعة بنجاح', collection: newCol });
     } catch (error) {
         res.status(500).json({ error: 'خطأ: ' + error.message });
     }
 });
 
+
 app.put('/api/collections/:id', authenticateAdmin, async (req, res) => {
     try {
-        const updates = { ...req.body, updatedAt: new Date().toISOString() };
+        const { mediaIds, ...rest } = req.body;
+        const updates = { ...rest, updatedAt: new Date().toISOString() };
         const keys = Object.keys(updates);
-        await db.run(`UPDATE collections SET ${keys.map(k => `${k} = ?`).join(',')} WHERE id = ?`, [...Object.values(updates), req.params.id]);
+        
+        if (keys.length > 0) {
+            await db.run(`UPDATE collections SET ${keys.map(k => `${k} = ?`).join(',')} WHERE id = ?`, [...Object.values(updates), req.params.id]);
+        }
+        
         res.json({ success: true, message: 'تم التحديث بنجاح' });
     } catch (error) {
         res.status(500).json({ error: 'خطأ: ' + error.message });
@@ -1359,6 +1453,29 @@ app.delete('/api/collections/:id', authenticateAdmin, async (req, res) => {
         await db.run('DELETE FROM collection_items WHERE collectionId = ?', [req.params.id]);
         await db.run('DELETE FROM collections WHERE id = ?', [req.params.id]);
         res.json({ success: true, message: 'تم حذف المجموعة بنجاح' });
+    } catch (error) {
+        res.status(500).json({ error: 'خطأ: ' + error.message });
+    }
+});
+
+app.post('/api/collections/:id/sync-items', authenticateAdmin, async (req, res) => {
+    try {
+        const { mediaIds } = req.body;
+        const collectionId = req.params.id;
+        
+        // حذف العناصر القديمة
+        await db.run('DELETE FROM collection_items WHERE collectionId = ?', [collectionId]);
+        
+        // إضافة العناصر الجديدة
+        if (mediaIds && Array.isArray(mediaIds)) {
+            for (let i = 0; i < mediaIds.length; i++) {
+                const itemId = 'col_item_' + Date.now() + '_' + i + '_' + Math.random().toString(36).substr(2, 5);
+                await db.run(`INSERT INTO collection_items (id, collectionId, mediaId, orderNum, createdAt) VALUES (?, ?, ?, ?, ?)`,
+                    [itemId, collectionId, mediaIds[i], i, new Date().toISOString()]);
+            }
+        }
+        
+        res.json({ success: true, message: 'تم تحديث عناصر المجموعة' });
     } catch (error) {
         res.status(500).json({ error: 'خطأ: ' + error.message });
     }
@@ -1699,7 +1816,13 @@ app.get('/api/home', async (req, res) => {
                 ORDER BY ci.orderNum ASC
             `, [col.id]);
             if (items.length > 0) {
-                collectionsWithItems.push({ ...col, items });
+                const posters = items.map(i => i.poster).filter(p => p);
+                collectionsWithItems.push({ 
+                    ...col, 
+                    items, 
+                    posters,
+                    itemCount: items.length 
+                });
             }
         }
 
