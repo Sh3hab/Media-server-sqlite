@@ -104,16 +104,51 @@ app.post('/api/tmdb/import', authenticateAdmin, async (req, res) => {
             return res.status(404).json({ error: 'المحتوى غير موجود في TMDB' });
         }
 
+        // استخراج التقييم العمري (Certification)
+        let ageRating = '';
+        if (type === 'movie') {
+            const releases = dataAr.release_dates?.results || [];
+            const usRelease = releases.find(r => r.iso_3166_1 === 'US') || releases[0];
+            if (usRelease) {
+                ageRating = usRelease.release_dates.find(rd => rd.certification)?.certification || '';
+            }
+        } else if (type === 'tv') {
+            const ratings = dataAr.content_ratings?.results || [];
+            const usRating = ratings.find(r => r.iso_3166_1 === 'US') || ratings[0];
+            ageRating = usRating?.rating || '';
+        }
+
+        // التحقق مما إذا كان الرابط يطلب اللغة الإنجليزية
+        const isEnglishPreferred = url.includes('language=en');
+        let finalPosterAr = dataAr.poster_path ? `https://image.tmdb.org/t/p/w500${dataAr.poster_path}` : '';
+        let finalPosterEn = dataEn.poster_path ? `https://image.tmdb.org/t/p/w500${dataEn.poster_path}` : '';
+
+        if (isEnglishPreferred && finalPosterEn) {
+            // تبديل البوسترات إذا كان الرابط إنجليزي ليكون الإنجليزي هو الأساسي
+            const temp = finalPosterAr;
+            finalPosterAr = finalPosterEn;
+            finalPosterEn = temp;
+        }
+
+        // استخراج وسم موحد (Tag) من الكلمات المفتاحية
+        let primaryTag = '';
+        const keywordsList = type === 'movie' ? (dataAr.keywords?.keywords || []) : (dataAr.keywords?.results || []);
+        if (keywordsList.length > 0) {
+            primaryTag = keywordsList[0].name;
+        }
+
         // Return full data for preview
         const responseData = {
             id: dataAr.id,
             titleAr: dataAr.title || dataAr.name || '',
             titleEn: dataEn.title || dataEn.name || '',
             year: (dataAr.release_date || dataAr.first_air_date || '').split('-')[0],
-            posterAr: dataAr.poster_path ? `https://image.tmdb.org/t/p/w500${dataAr.poster_path}` : '',
-            posterEn: dataEn.poster_path ? `https://image.tmdb.org/t/p/w500${dataEn.poster_path}` : '',
+            posterAr: finalPosterAr,
+            posterEn: finalPosterEn,
             backdrop: dataAr.backdrop_path ? `https://image.tmdb.org/t/p/original${dataAr.backdrop_path}` : '',
-            rating: dataAr.vote_average,
+            rating: dataAr.vote_average ? parseFloat(dataAr.vote_average).toFixed(1) : '0.0',
+            ageRating: ageRating,
+            tags: primaryTag, // وسم موحد
             descriptionAr: dataAr.overview || '',
             descriptionEn: dataEn.overview || '',
             genres: (dataAr.genres || []).map(g => ({ id: g.id, name: g.name })),

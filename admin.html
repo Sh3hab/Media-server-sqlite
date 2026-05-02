@@ -3873,6 +3873,8 @@
                                 <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 pb-4 border-b border-gray-800">
                                     <div><span class="text-gray-500 block text-xs">السنة</span> <span class="text-white">${data.year}</span></div>
                                     <div><span class="text-gray-500 block text-xs">التقييم</span> <span class="text-yellow-400">⭐ ${data.rating}</span></div>
+                                    <div><span class="text-gray-500 block text-xs">التصنيف العمري</span> <span class="text-primary font-bold">${data.ageRating || 'G'}</span></div>
+                                    <div><span class="text-gray-500 block text-xs">الوسم الموحد</span> <span class="text-orange-400 font-bold">${data.tags || '---'}</span></div>
                                     <div><span class="text-gray-500 block text-xs">النوع</span> <span class="text-white">${data.isMovie ? 'فيلم' : 'مسلسل'}</span></div>
                                     <div><span class="text-gray-500 block text-xs">المدة</span> <span class="text-white">${data.duration || '-'}</span></div>
                                 </div>
