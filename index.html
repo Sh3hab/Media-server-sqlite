@@ -2519,9 +2519,18 @@
                 let nextEps = [];
                 let seasons = [];
                 let series = null;
+                let collectionItems = [];
                 if (type === 'movie') {
                     const item = await fetch(`${API_BASE}/series/${id}`).then(r => r.json());
-                    info = { id: item.id, title: item.title, sub: 'فيلم كامل', url: item.videoUrl, desc: item.description, poster: item.poster, rating: item.rating, year: item.year };
+                    info = { id: item.id, title: item.title, sub: 'فيلم كامل', url: item.videoUrl, desc: item.description, poster: item.poster, rating: item.rating, year: item.year, collectionInfo: item.collectionInfo };
+                    
+                    if (info.collectionInfo) {
+                        try {
+                            const colRes = await fetch(`${API_BASE}/collections/${info.collectionInfo.id}`);
+                            const colData = await colRes.json();
+                            collectionItems = colData.items || [];
+                        } catch (e) { console.error('Failed to fetch collection', e); }
+                    }
                 } else {
                     const ep = await fetch(`${API_BASE}/episodes/${id}`).then(r => r.json());
                     series = await fetch(`${API_BASE}/series/${ep.seriesId}`).then(r => r.json());
@@ -2709,19 +2718,19 @@
 
                             ${seasons.length > 0 ? `
                                 <div>
-                                    <div class="flex items-center justify-between mb-8 border-r-4 border-accent pr-4">
+                                    <div class="flex items-center justify-between mb-8 border-r-4 border-primary pr-4">
                                         <h3 class="text-2xl font-black text-white">المواسم الأخرى</h3>
                                     </div>
                                     <div class="grid grid-cols-1 gap-4">
                                         ${seasons.map(s => `
                                             <div onclick="Views.loadSeasonEpisodes('${s.id}', '${info.seriesId}', '${s.title}')" 
-                                                class="flex flex-row-reverse items-center gap-5 p-4 bg-white/5 rounded-3xl border border-white/5 hover:bg-accent/10 transition-all cursor-pointer group">
+                                                class="flex flex-row-reverse items-center gap-5 p-4 bg-white/5 rounded-3xl border border-white/5 hover:bg-primary/10 transition-all cursor-pointer group">
                                                 <div class="w-16 aspect-[2/3] rounded-xl overflow-hidden shrink-0">
                                                     <img src="${info.poster}" class="w-full h-full object-cover group-hover:scale-110">
                                                 </div>
-                                                <div class="flex-1">
-                                                    <div class="text-[10px] text-accent font-black mb-1">${s.seriesTitle || info.title}</div>
-                                                    <div class="font-black text-white group-hover:text-accent">${s.title || `الموسم ${s.seasonNumber}`}</div>
+                                                <div class="flex-1 text-right">
+                                                    <div class="text-[10px] text-primary font-black mb-1">${s.seriesTitle || info.title}</div>
+                                                    <div class="font-black text-white group-hover:text-primary">${s.title || `الموسم ${s.seasonNumber}`}</div>
                                                     <div class="flex items-center gap-3 mt-1">
                                                         <span class="text-[10px] text-gray-400 border border-white/10 px-2 py-0.5 rounded-md">${s.episodeCount || 0} حلقة</span>
                                                         <span class="text-[10px] text-gray-500">${s.year || ''}</span>
@@ -2732,15 +2741,45 @@
                                     </div>
                                 </div>
                             ` : ''}
+
                         </div>
                     ` : `
-                        <!-- Movie Sidebar: Top Trending / Algorithmic -->
-                        <div class="mb-10 border-r-4 border-primary pr-4">
-                            <h3 class="text-2xl font-black text-white">الأكثر مشاهدة</h3>
-                            <p class="text-gray-500 text-xs font-black mt-1 uppercase tracking-widest">مختارات رائجة الآن</p>
-                        </div>
-                        <div id="player-trending-sug" class="grid grid-cols-2 gap-4">
-                            <!-- Cards will load here -->
+                        <div class="space-y-12">
+                            ${collectionItems.length > 1 ? `
+                                <!-- Movie Collection Section -->
+                                <div class="animate-fade-in">
+                                    <div class="flex items-center justify-between mb-8 border-r-4 border-primary pr-4">
+                                        <h3 class="text-2xl font-black text-white">سلسلة أفلام</h3>
+                                        <div class="text-xs text-primary/60 font-black tracking-widest uppercase">Collection</div>
+                                    </div>
+                                    <div class="space-y-4">
+                                        ${collectionItems.map((citem, idx) => `
+                                            <div onclick="Router.go('player', {id: '${citem.id}', type: 'movie'})" 
+                                                class="group flex flex-row-reverse items-center gap-5 p-4 ${citem.id === info.id ? 'bg-primary/10 border-primary/30' : 'bg-white/5 border-white/5'} rounded-3xl border hover:bg-primary/20 transition-all cursor-pointer">
+                                                <div class="w-16 aspect-[2/3] rounded-xl overflow-hidden shrink-0 relative shadow-lg">
+                                                    <img src="${citem.poster}" class="w-full h-full object-cover group-hover:scale-110 transition-transform">
+                                                    ${citem.id === info.id ? '<div class="absolute inset-0 bg-black/40 flex items-center justify-center"><i class="fa-solid fa-play text-primary text-xs"></i></div>' : ''}
+                                                </div>
+                                                <div class="flex-1 text-right">
+                                                    <div class="text-[10px] text-primary font-black mb-1">الجزء ${idx + 1}</div>
+                                                    <div class="font-black text-sm text-white line-clamp-1 group-hover:text-primary transition-colors">${citem.title}</div>
+                                                    <div class="text-[10px] text-gray-500 mt-1">${citem.year}</div>
+                                                </div>
+                                            </div>
+                                        `).join('')}
+                                    </div>
+                                </div>
+                            ` : ''}
+
+                            <div>
+                                <div class="mb-10 border-r-4 border-primary pr-4 text-right">
+                                    <h3 class="text-2xl font-black text-white">الأكثر مشاهدة</h3>
+                                    <p class="text-gray-500 text-xs font-black mt-1 uppercase tracking-widest">مختارات رائجة الآن</p>
+                                </div>
+                                <div id="player-trending-sug" class="grid grid-cols-2 gap-4">
+                                    <!-- Cards will load here -->
+                                </div>
+                            </div>
                         </div>
                     `}
                 </div>
@@ -3294,18 +3333,10 @@
                 fetch(`${API_BASE}/series`)
                     .then(r => r.json())
                     .then(all => {
-                        // خوارزمية ذكية للأكثر مشاهدة: ترتيب حسب المشاهدات والتقييم + خلط عشوائي بسيط
+                        // خوارزمية عشوائية تماماً لتقديم محتوى متجدد في كل مرة كما طلب المستخدم
                         const filtered = all.filter(i => i.id !== seriesId && i.id !== currentId)
-                                            .sort((a, b) => {
-                                                // الترتيب حسب المشاهدات أولاً ثم التقييم
-                                                const viewsA = a.views || 0;
-                                                const viewsB = b.views || 0;
-                                                if (viewsB !== viewsA) return viewsB - viewsA;
-                                                return (parseFloat(b.rating) || 0) - (parseFloat(a.rating) || 0);
-                                            })
-                                            .slice(0, 40) // نأخذ أفضل 40
-                                            .sort(() => 0.5 - Math.random()) // نخلطهم عشوائياً
-                                            .slice(0, 15); // نختار 15
+                                            .sort(() => 0.5 - Math.random()) // خلط عشوائي كامل لجميع المحتويات
+                                            .slice(0, 15); // اختيار 15 عنصراً عشوائياً
                         
                         const trendingGrid = document.getElementById('player-trending-sug');
                         if (trendingGrid) {
