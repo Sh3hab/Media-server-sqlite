@@ -1318,7 +1318,7 @@
                 <i
                     class="fa-solid fa-user text-2xl text-gray-500 group-[.active]:text-primary transition-all hover:text-white"></i>
             </button>
-        <div class="mt-auto pb-8">
+            <div class="mt-auto pb-8">
     </aside>
 
     <nav class="md:hidden fixed bottom-0 left-0 right-0 h-16 glass z-50 transition-transform duration-300 border-t border-white/5"
@@ -1334,13 +1334,13 @@
                 <i class="fa-solid fa-film text-xl"></i>
                 <span class="text-[10px] font-bold">أفلام</span>
             </button>
-            <button onclick="Router.go('watchlist')" class="mobile-nav-link flex flex-col items-center gap-1 text-gray-500"
-                data-view="watchlist">
+            <button onclick="Router.go('watchlist')"
+                class="mobile-nav-link flex flex-col items-center gap-1 text-gray-500" data-view="watchlist">
                 <i class="fa-solid fa-bookmark text-xl"></i>
                 <span class="text-[10px] font-bold">قائمتي</span>
             </button>
-            <button onclick="Router.go('account')" class="mobile-nav-link flex flex-col items-center gap-1 text-gray-500"
-                data-view="account">
+            <button onclick="Router.go('account')"
+                class="mobile-nav-link flex flex-col items-center gap-1 text-gray-500" data-view="account">
                 <i class="fa-solid fa-user text-xl"></i>
                 <span class="text-[10px] font-bold">حسابي</span>
             </button>
@@ -1363,7 +1363,8 @@
             </div>
 
             <div class="flex flex-col gap-8">
-                <div onclick="Router.go('account'); toggleMobileDrawer()" class="flex items-center gap-4 pb-6 border-b border-white/5 cursor-pointer hover:opacity-80 transition-opacity">
+                <div onclick="Router.go('account'); toggleMobileDrawer()"
+                    class="flex items-center gap-4 pb-6 border-b border-white/5 cursor-pointer hover:opacity-80 transition-opacity">
                     <img src="/uploads/users/default.png"
                         class="user-avatar-display w-16 h-16 rounded-full border-2 border-primary object-cover">
                     <div>
@@ -1408,14 +1409,14 @@
 
     <script>
         // ==================== دوال تسجيل الدخول عبر البروفايل (عالمية) ====================
-        window.showPasswordPrompt = function(userId, displayName) {
+        window.showPasswordPrompt = function (userId, displayName) {
             console.log('[DEBUG] Opening password prompt for:', displayName, userId);
             const prompt = document.getElementById('password-prompt');
             const nameEl = document.getElementById('password-prompt-name');
             const userIdInput = document.getElementById('profile-user-id');
             const passwordInput = document.getElementById('profile-password');
             const errorDiv = document.getElementById('profile-login-error');
-            
+
             if (!prompt) {
                 console.error('[ERROR] Password prompt element not found!');
                 return;
@@ -1426,12 +1427,12 @@
             errorDiv.classList.add('hidden');
             passwordInput.value = '';
             prompt.classList.remove('hidden');
-            
+
             prompt.scrollIntoView({ behavior: 'smooth', block: 'center' });
             setTimeout(() => passwordInput.focus(), 300);
         };
 
-        window.handleProfileLogin = async function(e) {
+        window.handleProfileLogin = async function (e) {
             e.preventDefault();
             console.log('[DEBUG] Handling profile login submission');
             const userId = document.getElementById('profile-user-id').value;
@@ -1451,7 +1452,7 @@
                     body: JSON.stringify({ userId })
                 });
                 const userData = await userRes.json();
-                
+
                 if (!userData.success) {
                     errorDiv.textContent = 'المستخدم غير موجود';
                     errorDiv.classList.remove('hidden');
@@ -1475,7 +1476,7 @@
                         profileId: loginData.user.id
                     };
                     localStorage.setItem('session', JSON.stringify(sessionData));
-                    window.location.reload(); 
+                    window.location.reload();
                 } else {
                     errorDiv.textContent = loginData.error || 'كلمة المرور غير صحيحة';
                     errorDiv.classList.remove('hidden');
@@ -1547,7 +1548,7 @@
             let [resource, config] = arguments;
             const isApi = typeof resource === 'string' && resource.startsWith(API_BASE);
             const isAuth = typeof resource === 'string' && resource.includes('/auth/');
-            
+
             if (isApi && !isAuth && currentSession && currentSession.userId) {
                 const separator = resource.includes('?') ? '&' : '?';
                 let query = 'userId=' + currentSession.userId;
@@ -1643,7 +1644,7 @@
                     else if (view === 'actor') path = `/actor/${params.id}`;
                     else if (view === 'player') path = `/player/${params.id}/${params.type}`;
                     else if (view === 'account') path = '/account';
-                    
+
                     history.pushState({ view, params }, '', path);
                 }
 
@@ -1807,7 +1808,7 @@
                 if (!col || !col.items || col.items.length === 0) return '';
                 const posters = col.items.map(i => i.poster).filter(Boolean);
                 if (posters.length === 0) posters.push('/uploads/posters/default.jpg');
-                
+
                 return `
                     <div onclick="Router.go('collection', {id: '${col.id}'})" class="group cursor-pointer collection-card" data-posters='${JSON.stringify(posters)}'>
                         <div class="relative aspect-[2/3] rounded-2xl overflow-hidden bg-surface border border-white/5 transition-all duration-500 card-glow group-hover:-translate-y-2">
@@ -2162,7 +2163,7 @@
                     card.addEventListener('mouseenter', () => {
                         interval = setInterval(() => {
                             const nextIdx = (currentIdx + 1) % posters.length;
-                            
+
                             imgs[1].src = posters[nextIdx];
                             imgs[1].classList.remove('opacity-0');
                             imgs[0].classList.add('opacity-0');
@@ -2516,177 +2517,165 @@
             async player(id, type) {
                 let info = {};
                 let nextEps = [];
+                let series = null;
                 if (type === 'movie') {
                     const item = await fetch(`${API_BASE}/series/${id}`).then(r => r.json());
-                    info = { id: item.id, title: item.title, sub: 'فيلم كامل', url: item.videoUrl, desc: item.description, poster: item.poster };
+                    info = { id: item.id, title: item.title, sub: 'فيلم كامل', url: item.videoUrl, desc: item.description, poster: item.poster, rating: item.rating, year: item.year };
                 } else {
                     const ep = await fetch(`${API_BASE}/episodes/${id}`).then(r => r.json());
-                    const series = await fetch(`${API_BASE}/series/${ep.seriesId}`).then(r => r.json());
+                    series = await fetch(`${API_BASE}/series/${ep.seriesId}`).then(r => r.json());
                     info = {
                         id: ep.id,
                         title: series.title,
                         sub: `الحلقة ${ep.episodeNumber}: ${ep.title}`,
                         url: ep.videoUrl,
-                        desc: ep.description,
+                        desc: ep.description || series.description,
                         poster: ep.thumbnail || series.poster,
                         seriesId: ep.seriesId,
                         seasonId: ep.seasonId,
-                        episodeNumber: ep.episodeNumber
+                        episodeNumber: ep.episodeNumber,
+                        rating: series.rating,
+                        year: series.year
                     };
                     nextEps = await fetch(`${API_BASE}/episodes?seriesId=${ep.seriesId}&seasonId=${ep.seasonId}`).then(r => r.json());
                     nextEps = nextEps.filter(e => e.episodeNumber > info.episodeNumber);
                 }
 
                 return `
-        <div class="min-h-screen bg-black flex flex-col" data-vid="${info.id}" data-series="${info.seriesId || ''}" data-season="${info.seasonId || ''}" data-episode="${info.episodeNumber || ''}">
-            <div id="p-container" class="ultra-player-container relative w-full mx-auto group bg-black overflow-hidden rounded-xl shadow-2xl" style="max-width: 100%; width: 100%; aspect-ratio: 16/9;">
+        <div class="min-h-screen bg-[#020202] text-right" data-vid="${info.id}" data-series="${info.seriesId || ''}" data-season="${info.seasonId || ''}" data-episode="${info.episodeNumber || ''}">
+            
+            <div class="max-w-[1920px] mx-auto flex flex-col lg:flex-row-reverse lg:h-screen overflow-hidden">
                 
-                <!-- Custom UI Overlays -->
-                <div class="custom-player-ui absolute inset-0 z-[110] pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                <!-- Right Side (65% Width): Player & Meta -->
+                <div class="w-full lg:w-[65%] flex flex-col h-full bg-black lg:border-l border-white/5 overflow-y-auto no-scrollbar">
                     
-                    <!-- Top Bar -->
-                    <div class="player-top-bar absolute top-0 left-0 right-0 h-24 bg-gradient-to-b from-black/90 to-transparent flex items-center justify-between px-8 pointer-events-auto">
-                        <button onclick="window.history.back()" class="bottom-ctrl-btn text-2xl">
-                            <i class="fa-solid fa-arrow-right"></i>
-                        </button>
-                        <div class="text-center flex-1 mx-4">
-                            <h2 class="text-white font-black text-xl md:text-2xl truncate drop-shadow-md">${info.title}</h2>
-                            <p class="text-primary font-bold text-xs tracking-widest uppercase opacity-70">${info.sub}</p>
+                    <!-- Cinematic Player -->
+                    <div id="p-container" class="ultra-player-container relative w-full aspect-video bg-black group overflow-hidden shrink-0 shadow-[0_20px_80px_rgba(0,0,0,0.9)]">
+                        <div class="custom-player-ui absolute inset-0 z-[110] pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                            <div class="player-top-bar absolute top-0 left-0 right-0 h-24 bg-gradient-to-b from-black/90 to-transparent flex items-center justify-between px-10 pointer-events-auto">
+                                <button onclick="window.history.back()" class="bottom-ctrl-btn text-2xl">
+                                    <i class="fa-solid fa-arrow-right"></i>
+                                </button>
+                                <div class="text-center flex-1 mx-4">
+                                    <h2 class="text-white font-black text-xl md:text-2xl truncate">${info.title}</h2>
+                                    <p class="text-primary font-bold text-xs tracking-widest uppercase opacity-70">${info.sub}</p>
+                                </div>
+                            </div>
+
+                            <!-- Center -->
+                            <div class="netflix-center-controls absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center gap-12 pointer-events-auto">
+                                <button class="center-btn w-14 h-14 md:w-20 md:h-20 bg-black/40 backdrop-blur-2xl rounded-full border border-white/10 flex items-center justify-center text-white text-xl md:text-2xl hover:bg-primary hover:text-black transition-all" onclick="PlayerEngine.skipBackward()">
+                                    <i class="fa-solid fa-rotate-left"></i>
+                                </button>
+                                <button class="center-btn w-16 h-16 md:w-28 md:h-28 bg-primary text-black rounded-full shadow-[0_0_60px_rgba(27,214,142,0.4)] flex items-center justify-center text-4xl md:text-5xl hover:scale-110 transition-all active:scale-95" onclick="PlayerEngine.playPause()">
+                                    <i id="center-play-icon" class="fa-solid fa-play ml-2"></i>
+                                </button>
+                                <button class="center-btn w-14 h-14 md:w-20 md:h-20 bg-black/40 backdrop-blur-2xl rounded-full border border-white/10 flex items-center justify-center text-white text-xl md:text-2xl hover:bg-primary hover:text-black transition-all" onclick="PlayerEngine.skipForward()">
+                                    <i class="fa-solid fa-rotate-right"></i>
+                                </button>
+                            </div>
+
+                            <div class="player-bottom-bar absolute bottom-0 left-0 right-0 pointer-events-auto px-10 pb-10">
+                                <div class="custom-progress-container mb-6" id="custom-progress-container">
+                                    <div class="custom-progress-bar" id="custom-progress-bar">
+                                        <div class="custom-progress-handle"></div>
+                                    </div>
+                                </div>
+                                <div class="flex items-center justify-between">
+                                    <div class="flex items-center gap-8">
+                                        <div class="volume-container">
+                                            <button class="bottom-ctrl-btn" onclick="PlayerEngine.mute()">
+                                                <i id="volume-icon" class="fa-solid fa-volume-high"></i>
+                                            </button>
+                                            <div class="volume-slider" id="volume-slider">
+                                                <div class="volume-fill" id="volume-fill"></div>
+                                            </div>
+                                        </div>
+                                        <div class="text-white font-black text-sm flex gap-2 items-center opacity-80 font-mono">
+                                            <span id="curr-time">00:00</span>
+                                            <span class="opacity-30">/</span>
+                                            <span id="total-time">00:00</span>
+                                        </div>
+                                    </div>
+                                    <div class="flex items-center gap-6">
+                                        <button class="bottom-ctrl-btn text-2xl" onclick="PlayerEngine.fullscreen()">
+                                            <i class="fa-solid fa-expand" id="full-icon"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
-                        <div class="flex items-center gap-2">
-
-                        </div>
-                    </div>
-
-                    <!-- Center Controls -->
-                    <div class="netflix-center-controls absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center gap-10 md:gap-20 pointer-events-auto">
-                        <button class="center-btn w-12 h-12 md:w-24 md:h-24 bg-black/30 backdrop-blur-xl rounded-full border border-white/5 flex items-center justify-center text-white text-2xl md:text-3xl hover:bg-primary hover:text-black transition-all" onclick="PlayerEngine.skipBackward()">
-                            <i class="fa-solid fa-rotate-left"></i>
-                        </button>
-                        <button class="center-btn w-16 h-16 md:w-32 md:h-32 bg-primary text-black rounded-full shadow-[0_0_50px_rgba(27,214,142,0.4)] flex items-center justify-center text-4xl md:text-5xl hover:scale-110 transition-all active:scale-95" onclick="PlayerEngine.playPause()">
-                            <i id="center-play-icon" class="fa-solid fa-play ml-2"></i>
-                        </button>
-                        <button class="center-btn w-12 h-12 md:w-24 md:h-24 bg-black/30 backdrop-blur-xl rounded-full border border-white/5 flex items-center justify-center text-white text-2xl md:text-3xl hover:bg-primary hover:text-black transition-all" onclick="PlayerEngine.skipForward()">
-                            <i class="fa-solid fa-rotate-right"></i>
-                        </button>
-                    </div>
-
-                    <!-- Custom Bottom Control Bar -->
-                    <div class="player-bottom-bar absolute bottom-0 left-0 right-0 pointer-events-auto">
                         
-                        <!-- Progress Bar -->
-                        <div class="custom-progress-container" id="custom-progress-container">
-                            <div class="custom-progress-bar" id="custom-progress-bar">
-                                <div class="custom-progress-handle"></div>
-                            </div>
+                        <div data-vjs-player class="w-full h-full">
+                            <video id="ultra-v" class="video-js vjs-theme-ultra vjs-big-play-centered" preload="auto" playsinline poster="${info.poster}">
+                                <source src="${info.url}" type="video/mp4" />
+                            </video>
                         </div>
+                    </div>
 
-                        <div class="flex items-center justify-between">
-                            <div class="flex items-center gap-2 md:gap-4">
-
-
-                                <div class="volume-container">
-                                    <button class="bottom-ctrl-btn" onclick="PlayerEngine.mute()">
-                                        <i id="volume-icon" class="fa-solid fa-volume-high"></i>
-                                    </button>
-                                    <div class="volume-slider" id="volume-slider">
-                                        <div class="volume-fill" id="volume-fill"></div>
-                                    </div>
+                    <!-- Meta Content -->
+                    <div class="p-8 md:p-14">
+                        <div class="flex flex-row-reverse justify-between items-start gap-10 mb-12">
+                            <div class="flex-1">
+                                <div class="flex flex-row-reverse gap-3 mb-6 items-center">
+                                    <span class="px-4 py-1.5 bg-primary/20 text-primary border border-primary/20 text-xs font-black rounded-lg uppercase tracking-wider">${type === 'movie' ? 'فيلم' : 'مسلسل'}</span>
+                                    <span class="px-4 py-1.5 bg-white/5 text-gray-400 border border-white/10 text-xs font-black rounded-lg">${info.year || ''}</span>
+                                    <span class="px-4 py-1.5 bg-white/5 text-yellow-500 border border-white/10 text-xs font-black rounded-lg italic">⭐ ${info.rating || ''}</span>
                                 </div>
-                                <div class="text-white font-black text-xs md:text-sm flex gap-1 items-center opacity-80 font-mono">
-                                    <span id="curr-time">00:00</span>
-                                    <span>/</span>
-                                    <span id="total-time">00:00</span>
-                                </div>
+                                <h1 class="text-4xl md:text-6xl font-black text-white mb-6 tracking-tighter leading-tight">${info.title}</h1>
+                                <p class="text-primary font-black text-xl mb-8">${info.sub}</p>
+                                <p class="text-gray-400 text-xl leading-relaxed opacity-70 max-w-5xl">${info.desc || 'لا يوجد وصف متاح لهذا العمل.'}</p>
                             </div>
-
-                            <div class="flex items-center gap-2 md:gap-4">
-                                <button class="bottom-ctrl-btn" onclick="PlayerEngine.toggleSubtitles()">
-                                    <i class="fa-solid fa-closed-captioning"></i>
+                            <div class="flex flex-col gap-4 shrink-0">
+                                <button onclick="PlayerEngine.like()" class="w-16 h-16 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center hover:bg-primary hover:text-black transition-all active:scale-90 group">
+                                    <i class="fa-regular fa-thumbs-up text-2xl group-hover:scale-110"></i>
                                 </button>
-
-                                <button class="bottom-ctrl-btn" onclick="PlayerEngine.pictureInPicture()">
-                                    <i class="fa-solid fa-window-restore"></i>
+                                <button onclick="PlayerEngine.share()" class="w-16 h-16 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center hover:bg-white hover:text-black transition-all active:scale-90 group">
+                                    <i class="fa-solid fa-share-nodes text-2xl group-hover:scale-110"></i>
                                 </button>
-                                <button class="bottom-ctrl-btn text-2xl" onclick="PlayerEngine.fullscreen()">
-                                    <i class="fa-solid fa-expand" id="full-icon"></i>
+                                <button onclick="PlayerEngine.addToWatchlist()" class="w-16 h-16 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center hover:bg-white hover:text-black transition-all active:scale-90 group">
+                                    <i class="fa-regular fa-bookmark text-2xl group-hover:scale-110"></i>
                                 </button>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Tap Regions for Mobile -->
-                <div class="tap-region absolute top-0 bottom-0 left-0 w-1/3 z-50 cursor-pointer" ondblclick="PlayerEngine.skipBackward()"></div>
-                <div class="tap-region absolute top-0 bottom-0 right-0 w-1/3 z-50 cursor-pointer" ondblclick="PlayerEngine.skipForward()"></div>
-
-                <div id="speed-tag" class="speed-overlay"><i class="fa-solid fa-bolt mr-2"></i> 2x</div>
-                
-                <div data-vjs-player class="w-full h-full" style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center;">
-                    <video id="ultra-v" class="video-js vjs-theme-ultra vjs-big-play-centered" preload="auto" playsinline poster="${info.poster}">
-                        <source src="${info.url}" type="video/mp4" />
-                    </video>
-                </div>
-            </div>
-
-            <!-- محتوى أسفل المشغل -->
-            <div class="flex-1 bg-obsidian p-6 md:p-10 text-right">
-                <div class="max-w-7xl mx-auto">
-                    <!-- معلومات الفيديو -->
-                    <div class="flex flex-col md:flex-row-reverse justify-between items-start gap-6 mb-8">
-                        <div class="flex-1">
-                            <h1 class="text-3xl md:text-5xl font-black mb-3">${info.title}</h1>
-                            <p class="text-primary font-bold text-lg mb-4">${info.sub}</p>
-                            <p class="text-gray-400 text-base leading-relaxed max-w-3xl">${info.desc || ''}</p>
+                <!-- Left Side (35% Width): Sidebar Content -->
+                <div class="w-full lg:w-[35%] h-full bg-[#050505] overflow-y-auto no-scrollbar p-8 lg:p-12 order-1 lg:order-2">
+                    ${type === 'series' ? `
+                        <!-- Series Sidebar: Playlist -->
+                        <div class="flex items-center justify-between mb-10 border-r-4 border-primary pr-4">
+                            <h3 class="text-2xl font-black text-white italic">الحلقات القادمة</h3>
+                            <span class="text-xs bg-white/5 text-gray-500 px-3 py-1 rounded-full font-black">${nextEps.length} حلقة متبقية</span>
                         </div>
-                        <div class="flex gap-3">
-                            <button class="w-12 h-12 rounded-xl bg-white/5 flex items-center justify-center hover:text-primary hover:bg-white/10 transition-all" onclick="PlayerEngine.like()">
-                                <i class="fa-regular fa-thumbs-up text-xl"></i>
-                            </button>
-                            <button class="w-12 h-12 rounded-xl bg-white/5 flex items-center justify-center hover:text-primary hover:bg-white/10 transition-all" onclick="PlayerEngine.share()">
-                                <i class="fa-solid fa-share-nodes text-xl"></i>
-                            </button>
-                            <button class="w-12 h-12 rounded-xl bg-white/5 flex items-center justify-center hover:text-primary hover:bg-white/10 transition-all" onclick="PlayerEngine.addToWatchlist()">
-                                <i class="fa-regular fa-bookmark text-xl"></i>
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- الحلقات التالية (إذا وجدت) -->
-                    ${nextEps.length > 0 ? `
-                    <div class="mb-12">
-                        <h3 class="text-xl font-black mb-6 flex items-center gap-3">
-                            <i class="fa-solid fa-forward-step text-primary"></i>
-                            التالي
-                        </h3>
-                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                            ${nextEps.slice(0, 4).map(e => `
+                        <div class="space-y-5">
+                            ${nextEps.map(e => `
                                 <div onclick="Router.go('player', {id: '${e.id}', type: 'episode'})" 
-                                    class="flex items-center gap-4 p-4 bg-white/5 rounded-xl border border-white/5 hover:bg-primary/10 hover:border-primary/20 transition-all cursor-pointer group">
-                                    <div class="w-16 aspect-video rounded-lg overflow-hidden">
-                                        <img src="${e.thumbnail || info.poster}" class="w-full h-full object-cover">
+                                    class="group flex flex-row-reverse items-center gap-6 p-4 bg-white/5 rounded-[2rem] border border-white/5 hover:bg-primary/10 hover:border-primary/20 transition-all cursor-pointer">
+                                    <div class="w-32 aspect-video rounded-2xl overflow-hidden shrink-0 relative shadow-2xl">
+                                        <img src="${e.thumbnail || info.poster}" class="w-full h-full object-cover group-hover:scale-110 transition-transform">
+                                        <div class="absolute inset-0 bg-primary/10 opacity-0 group-hover:opacity-100 transition-opacity"></div>
                                     </div>
-                                    <div class="flex-1 text-right">
-                                        <div class="text-xs text-primary font-black mb-1">حلقة ${e.episodeNumber}</div>
-                                        <div class="font-bold text-sm line-clamp-1 group-hover:text-primary">${e.title}</div>
+                                    <div class="flex-1">
+                                        <div class="text-[10px] text-primary font-black mb-1 uppercase tracking-widest">حلقة ${e.episodeNumber}</div>
+                                        <div class="font-bold text-lg text-white line-clamp-1 group-hover:text-primary transition-colors">${e.title}</div>
                                     </div>
                                 </div>
                             `).join('')}
                         </div>
-                    </div>
-                    ` : ''}
-
-                    <!-- قد يعجبك أيضاً -->
-                    <div>
-                        <h3 class="text-xl font-black mb-6 flex items-center gap-3">
-                            <i class="fa-regular fa-star text-primary"></i>
-                            قد يعجبك أيضاً
-                        </h3>
-                        <div id="player-sug" class="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-4">
-                            <!-- سيتم تعبئتها بالجافاسكربت -->
+                    ` : `
+                        <!-- Movie Sidebar: 15 Algorithmic Suggestions -->
+                        <div class="mb-10 border-r-4 border-primary pr-4">
+                            <h3 class="text-2xl font-black text-white italic">اقتراحات ذكية لك</h3>
+                            <p class="text-gray-500 text-xs font-black mt-1 uppercase tracking-widest">بناءً على اهتماماتك</p>
                         </div>
-                    </div>
+                        <div id="player-smart-sug" class="grid grid-cols-2 gap-4">
+                            <!-- Cards will load via algorithm -->
+                        </div>
+                    `}
                 </div>
+
             </div>
         </div>`;
             },
@@ -2767,7 +2756,7 @@
                     if (!collection || collection.error) throw new Error(collection.error || 'المجموعة غير موجودة');
                     const items = collection.items || [];
                     const mainPoster = collection.poster || (items[0] ? items[0].poster : '/uploads/posters/default.jpg');
-                    
+
                     appRoot.innerHTML = `
                         <div class="relative min-h-screen pb-20 overflow-x-hidden">
                             <!-- Background Carousel -->
@@ -2877,10 +2866,10 @@
                 try {
                     const hRes = await fetch(`${API_BASE}/history/${s.userId}`);
                     const wRes = await fetch(`${API_BASE}/watchlist/${s.userId}`);
-                    
+
                     const hData = await hRes.json();
                     const wData = await wRes.json();
-                    
+
                     history = Array.isArray(hData) ? hData : [];
                     watchlist = Array.isArray(wData) ? wData : [];
                 } catch (e) { console.error('Error fetching account data:', e); }
@@ -3034,13 +3023,13 @@
                                             <div class="glass p-10 rounded-[2.5rem] border border-white/5 relative overflow-hidden group">
                                                 <div class="absolute top-0 right-0 w-32 h-32 bg-primary/5 -mr-16 -mt-16 rounded-full group-hover:scale-150 transition-transform duration-700"></div>
                                                 <i class="fa-solid fa-film text-primary text-4xl mb-6"></i>
-                                                <div class="text-5xl font-black text-white mb-2">${history.filter(i=>i.isMovie).length}</div>
+                                                <div class="text-5xl font-black text-white mb-2">${history.filter(i => i.isMovie).length}</div>
                                                 <div class="text-gray-500 font-black uppercase tracking-widest text-sm">أفلام شاهدتها</div>
                                             </div>
                                             <div class="glass p-10 rounded-[2.5rem] border border-white/5 relative overflow-hidden group">
                                                 <div class="absolute top-0 right-0 w-32 h-32 bg-accent/5 -mr-16 -mt-16 rounded-full group-hover:scale-150 transition-transform duration-700"></div>
                                                 <i class="fa-solid fa-tv text-accent text-4xl mb-6"></i>
-                                                <div class="text-5xl font-black text-white mb-2">${history.filter(i=>!i.isMovie).length}</div>
+                                                <div class="text-5xl font-black text-white mb-2">${history.filter(i => !i.isMovie).length}</div>
                                                 <div class="text-gray-500 font-black uppercase tracking-widest text-sm">مسلسلات شاهدتها</div>
                                             </div>
                                         </div>
@@ -3116,9 +3105,9 @@
             async profileSelection() {
                 try {
                     const users = await fetch('/api/profiles').then(r => r.json());
-                    
+
                     let cards = '';
-                    users.forEach(function(u) {
+                    users.forEach(function (u) {
                         const name = (u.name || u.username || 'مستخدم').replace(/'/g, "\\'");
                         cards += '<div onclick="showPasswordPrompt(\'' + u.id + '\', \'' + name + '\')" class="group cursor-pointer flex flex-col items-center" id="user-card-' + u.id + '">'
                             + '<div class="w-32 h-32 md:w-44 md:h-44 rounded-3xl overflow-hidden border-4 border-transparent group-hover:border-primary group-hover:scale-110 transition-all duration-500 shadow-2xl relative">'
@@ -3189,6 +3178,26 @@
                 this.setupKeyboardControls();
                 this.setupGestures();
                 this.loadSuggestions();
+            },
+
+            loadSuggestions() {
+                const vidData = document.querySelector('[data-vid]');
+                const seriesId = vidData?.dataset.series;
+                const currentId = vidData?.dataset.vid;
+                
+                fetch(`${API_BASE}/series`)
+                    .then(r => r.json())
+                    .then(all => {
+                        // خوارزمية ذكية: تصفية العمل الحالي، ترتيب عشوائي، اختيار 15 عنصر
+                        const filtered = all.filter(i => i.id !== seriesId && i.id !== currentId)
+                                            .sort(() => 0.5 - Math.random())
+                                            .slice(0, 15);
+                        
+                        const smartSug = document.getElementById('player-smart-sug');
+                        if (smartSug) {
+                            smartSug.innerHTML = filtered.map(item => UI.card(item)).join('');
+                        }
+                    });
             },
 
             setupPlayer(vidId) {
@@ -3821,11 +3830,11 @@
 
 
         // ==================== Account Management Functions ====================
-        window.switchTab = function(tabId) {
+        window.switchTab = function (tabId) {
             document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
             const target = document.getElementById(`tab-${tabId}`);
             if (target) target.classList.remove('hidden');
-            
+
             document.querySelectorAll('.account-tab').forEach(el => {
                 el.classList.remove('active');
                 el.classList.add('text-gray-500', 'hover:bg-white/5');
@@ -3837,11 +3846,11 @@
             }
         };
 
-        window.toggleAvatarMenu = function(e) {
+        window.toggleAvatarMenu = function (e) {
             e.stopPropagation();
             const menu = document.getElementById('avatar-menu');
             menu.classList.toggle('hidden');
-            
+
             const closer = () => {
                 menu.classList.add('hidden');
                 document.removeEventListener('click', closer);
@@ -3849,13 +3858,13 @@
             document.addEventListener('click', closer);
         };
 
-        window.handleAvatarUpload = function(input) {
+        window.handleAvatarUpload = function (input) {
             if (input.files && input.files[0]) {
                 const reader = new FileReader();
-                reader.onload = async function(e) {
+                reader.onload = async function (e) {
                     const avatarData = e.target.result;
                     document.getElementById('profile-preview-large').src = avatarData;
-                    
+
                     try {
                         const res = await fetch('/api/me/update', {
                             method: 'PUT',
@@ -3875,7 +3884,7 @@
             }
         };
 
-        window.deleteAvatar = async function() {
+        window.deleteAvatar = async function () {
             const defaultAvatar = '/uploads/users/default.png';
             document.getElementById('profile-preview-large').src = defaultAvatar;
             try {
@@ -3894,7 +3903,7 @@
             } catch (err) { showAlert('❌ خطأ في الحذف', 'error'); }
         };
 
-        window.saveInlineName = async function(el) {
+        window.saveInlineName = async function (el) {
             const newName = el.textContent.trim();
             if (!newName || newName === (currentSession.name || currentSession.username)) return;
 
@@ -3914,7 +3923,7 @@
             } catch (err) { showAlert('❌ خطأ في حفظ الاسم', 'error'); }
         };
 
-        window.handlePasswordUpdate = async function(e) {
+        window.handlePasswordUpdate = async function (e) {
             e.preventDefault();
             const password = document.getElementById('update-password').value;
             const confirm = document.getElementById('confirm-password').value;

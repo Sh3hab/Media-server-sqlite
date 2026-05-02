@@ -9,5 +9,6 @@ with open(file_path, 'r', encoding='utf-8') as f:
 del lines[2410:2438]
 
 with open(file_path, 'w', encoding='utf-8') as f:
-    f.writelines(lines)
+    f.writelines(items.tags)
+
 
